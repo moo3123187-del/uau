@@ -1,0 +1,139 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'currentLessonId', 'completedCount', 'xp', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'currentLessonId', 'completedCount', 'xp', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.currentLessonId is string && data.currentLessonId.size() >= 1 && data.currentLessonId.size() <= 64 && data.currentLessonId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.completedCount is number && data.completedCount >= 0 && data.completedCount <= 100
+        && data.xp is number && data.xp >= 0 && data.xp <= 100000;
+    }
+
+    function isValidLessonProgress(data, userId, lessonId) {
+      return data.keys().hasAll(['userId', 'lessonId', 'completed', 'scripts', 'attempts', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'lessonId', 'completed', 'scripts', 'attempts', 'createdAt', 'updatedAt'])
+        && data.userId is string && data.userId == userId && isValidId(data.userId)
+        && data.lessonId is string && data.lessonId == lessonId && data.lessonId.size() >= 1 && data.lessonId.size() <= 64 && data.lessonId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.completed is bool
+        && data.scripts is map && data.scripts.keys().size() <= 16
+        && data.attempts is number && data.attempts >= 0 && data.attempts <= 10000;
+    }
+
+    function isValidSandboxProject(data, userId) {
+      return data.keys().hasAll(['userId', 'title', 'templateId', 'scripts', 'dataStoreSnapshot', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'title', 'templateId', 'scripts', 'dataStoreSnapshot', 'createdAt', 'updatedAt'])
+        && data.userId is string && data.userId == userId && isValidId(data.userId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
+        && data.templateId is string && data.templateId.size() >= 1 && data.templateId.size() <= 64 && data.templateId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.scripts is map && data.scripts.keys().size() <= 20
+        && data.dataStoreSnapshot is map && data.dataStoreSnapshot.keys().size() <= 100;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'currentLessonId', 'completedCount', 'xp', 'updatedAt']);
+      allow delete: if isValidId(userId) && isVerifiedUser() && isOwner(userId);
+
+      match /progress/{lessonId} {
+        allow get: if isValidId(userId)
+          && isValidId(lessonId)
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(lessonId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidLessonProgress(incoming(), userId, lessonId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(lessonId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidLessonProgress(incoming(), userId, lessonId)
+          && incoming().userId == existing().userId
+          && incoming().lessonId == existing().lessonId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'scripts', 'attempts', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(lessonId) && isVerifiedUser() && isOwner(userId);
+      }
+
+      match /projects/{projectId} {
+        allow get: if isValidId(userId)
+          && isValidId(projectId)
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(projectId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSandboxProject(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(projectId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSandboxProject(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'templateId', 'scripts', 'dataStoreSnapshot', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(projectId) && isVerifiedUser() && isOwner(userId);
+      }
+    }
+  }
+}

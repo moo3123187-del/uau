@@ -1,0 +1,8 @@
+{
+  "name": "LuauCraft Studio",
+  "description": "Interactive zero-to-pro Roblox Studio Luau coding platform with live 3D viewport execution, Explorer tree, Output console, and cloud-saved progress.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

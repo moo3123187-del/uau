@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Learner account metadata, active lesson pointer, and mastery XP.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the learner.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Learner display name shown in the Studio workspace.",
+          "maxLength": 100
+        },
+        "currentLessonId": {
+          "type": "string",
+          "description": "Last active lesson identifier.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "completedCount": {
+          "type": "number",
+          "description": "Number of completed curriculum lessons."
+        },
+        "xp": {
+          "type": "number",
+          "description": "Total earned mastery XP."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "currentLessonId", "completedCount", "xp", "createdAt", "updatedAt"]
+    },
+    "LessonProgress": {
+      "title": "LessonProgress",
+      "description": "Completion state and cloud-saved Luau scripts for a specific lesson.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lessonId": {
+          "type": "string",
+          "description": "Curriculum lesson identifier.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the learner verified and passed the lesson."
+        },
+        "scripts": {
+          "type": "object",
+          "description": "Map of script paths to Luau source code."
+        },
+        "attempts": {
+          "type": "number",
+          "description": "Number of verification attempts."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["userId", "lessonId", "completed", "scripts", "attempts", "createdAt", "updatedAt"]
+    },
+    "SandboxProject": {
+      "title": "SandboxProject",
+      "description": "Custom multi-script model-free Roblox experience saved by a learner.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "User-defined project title.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "templateId": {
+          "type": "string",
+          "description": "Base starter template identifier.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "scripts": {
+          "type": "object",
+          "description": "Map of script paths to Luau source code."
+        },
+        "dataStoreSnapshot": {
+          "type": "object",
+          "description": "Simulated DataStoreService key-value snapshot."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["userId", "title", "templateId", "scripts", "dataStoreSnapshot", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Per-learner profile and progression summary."
+    },
+    "/users/{userId}/progress/{lessonId}": {
+      "schema": {
+        "$ref": "#/entities/LessonProgress"
+      },
+      "description": "Per-lesson completion status and saved Luau scripts."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": {
+        "$ref": "#/entities/SandboxProject"
+      },
+      "description": "Custom model-free Roblox sandbox projects."
+    }
+  }
+}
