@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   User,
   onAuthStateChanged,
@@ -18,12 +18,15 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { LessonProgressRecord, SavedSandboxProject } from '../types/studio';
 
 interface AuthContextValue {
   user: User | null;
   authReady: boolean;
+  signingIn: boolean;
   authError: string | null;
+  clearAuthError: () => void;
   progressMap: Record<string, LessonProgressRecord>;
   savedProjects: SavedSandboxProject[];
   xp: number;
@@ -57,39 +60,77 @@ function sanitizeId(raw: string, fallback: string): string {
   return cleaned || fallback;
 }
 
+function loadLocalProgress(): Record<string, LessonProgressRecord> {
+  try {
+    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, LessonProgressRecord>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadLocalProjects(): SavedSandboxProject[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_PROJECTS_KEY);
+    return raw ? (JSON.parse(raw) as SavedSandboxProject[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function sanitizeJsonObject(input: Record<string, unknown>, maxKeys: number): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  Object.entries(input)
+    .slice(0, maxKeys)
+    .forEach(([k, v]) => {
+      if (v === undefined) return;
+      try {
+        out[k] = JSON.parse(JSON.stringify(v));
+      } catch {
+        out[k] = String(v);
+      }
+    });
+  return out;
+}
+
+function formatSignInError(err: unknown): string {
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code ?? '')
+      : '';
+  const msg = err instanceof Error ? err.message : 'Unable to sign in with Google.';
+
+  if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+    return `Domain "${host}" is not authorized for Google Sign-In yet. Add "${host}" under Firebase Console -> Authentication -> Settings -> Authorized domains (project: ${firebaseConfig.projectId}).`;
+  }
+  if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
+    return 'Sign-in pop-up was blocked by your browser. Allow pop-ups for this site and click Sign In again.';
+  }
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return 'Sign-in pop-up was closed before finishing.';
+  }
+  if (code === 'auth/network-request-failed') {
+    return 'Network error while contacting Google Sign-In. Check your connection and try again.';
+  }
+  return msg;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [progressMap, setProgressMap] = useState<Record<string, LessonProgressRecord>>(() => {
-    try {
-      const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
-      return raw ? (JSON.parse(raw) as Record<string, LessonProgressRecord>) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [savedProjects, setSavedProjects] = useState<SavedSandboxProject[]>(() => {
-    try {
-      const raw = localStorage.getItem(LOCAL_PROJECTS_KEY);
-      return raw ? (JSON.parse(raw) as SavedSandboxProject[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [progressMap, setProgressMap] = useState<Record<string, LessonProgressRecord>>(() =>
+    loadLocalProgress()
+  );
+  const [savedProjects, setSavedProjects] = useState<SavedSandboxProject[]>(() =>
+    loadLocalProjects()
+  );
   const [xp, setXp] = useState<number>(0);
   const [currentLessonId, setCurrentLessonId] = useState<string>('m1_l1_print');
 
-  useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      setAuthReady(true);
-      if (u) {
-        await ensureUserProfile(u);
-      }
-    });
-    return () => unsubAuth();
-  }, []);
+  const profilePromiseRef = useRef<Promise<void> | null>(null);
 
   const ensureUserProfile = async (u: User) => {
     const profilePath = `users/${u.uid}`;
@@ -97,7 +138,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const snap = await getDoc(ref);
       if (!snap.exists()) {
-        const displayName = (u.displayName || 'Roblox Scripter').slice(0, 100);
+        const displayName =
+          (u.displayName?.trim() || u.email?.split('@')[0] || 'Roblox Scripter').slice(0, 100);
         await setDoc(ref, {
           uid: u.uid,
           displayName,
@@ -116,6 +158,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleFirestoreError(err, OperationType.GET, profilePath);
     }
   };
+
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        const p = ensureUserProfile(u).catch((err) => {
+          const msg = err instanceof Error ? err.message : 'Unable to load cloud profile.';
+          setAuthError(`Signed in, but cloud database access failed: ${msg}`);
+        });
+        profilePromiseRef.current = p;
+        await p;
+        setUser(u);
+        setAuthReady(true);
+      } else {
+        profilePromiseRef.current = null;
+        setUser(null);
+        setAuthReady(true);
+      }
+    });
+    return () => unsubAuth();
+  }, []);
 
   useEffect(() => {
     if (!authReady || !user) return;
@@ -197,23 +259,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [authReady, user]);
 
   const signInWithGoogle = async () => {
+    if (signingIn) return;
     setAuthError(null);
+    setSigningIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unable to sign in';
-      setAuthError(msg);
+      setAuthError(formatSignInError(err));
+    } finally {
+      setSigningIn(false);
     }
   };
 
   const signOutUser = async () => {
+    setAuthError(null);
     await signOut(auth);
+    setProgressMap(loadLocalProgress());
+    setSavedProjects(loadLocalProjects());
+    setXp(0);
+    setCurrentLessonId('m1_l1_print');
   };
 
   const setActiveLessonPointer = async (lessonId: string) => {
     const safeId = sanitizeId(lessonId, 'm1_l1_print');
     setCurrentLessonId(safeId);
     if (!user) return;
+    if (profilePromiseRef.current) await profilePromiseRef.current;
     const profileRef = doc(db, 'users', user.uid);
     try {
       await updateDoc(profileRef, {
@@ -237,7 +308,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextAttempts = Math.min(10000, (prev?.attempts ?? 0) + 1);
     const earnedNewCompletion = !prev?.completed && completed;
 
-    // Limit scripts map to max 16 entries per blueprint
     const boundedScripts: Record<string, string> = {};
     Object.entries(scripts)
       .slice(0, 16)
@@ -265,6 +335,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    if (profilePromiseRef.current) await profilePromiseRef.current;
+
     const docPath = `users/${user.uid}/progress/${safeLessonId}`;
     const ref = doc(db, 'users', user.uid, 'progress', safeLessonId);
     try {
@@ -289,8 +361,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (earnedNewCompletion) {
-        const completedCount =
-          Object.values(progressMap).filter((p) => p.completed).length + 1;
+        const completedCount = Math.min(
+          100,
+          Object.values(progressMap).filter((p) => p.completed).length + 1
+        );
         await updateDoc(doc(db, 'users', user.uid), {
           completedCount,
           xp: Math.min(100000, xp + xpReward),
@@ -321,12 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         boundedScripts[k] = String(v).slice(0, 40000);
       });
 
-    const boundedStore: Record<string, unknown> = {};
-    Object.entries(dataStoreSnapshot)
-      .slice(0, 100)
-      .forEach(([k, v]) => {
-        boundedStore[k] = v;
-      });
+    const boundedStore = sanitizeJsonObject(dataStoreSnapshot, 100);
 
     if (!user) {
       const nextProj: SavedSandboxProject = {
@@ -346,6 +415,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return id;
     }
+
+    if (profilePromiseRef.current) await profilePromiseRef.current;
 
     const docPath = `users/${user.uid}/projects/${id}`;
     const ref = doc(db, 'users', user.uid, 'projects', id);
@@ -384,6 +455,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LOCAL_PROJECTS_KEY, JSON.stringify(updated));
       return;
     }
+    if (profilePromiseRef.current) await profilePromiseRef.current;
     const docPath = `users/${user.uid}/projects/${safeId}`;
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'projects', safeId));
@@ -397,7 +469,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         authReady,
+        signingIn,
         authError,
+        clearAuthError: () => setAuthError(null),
         progressMap,
         savedProjects,
         xp,
