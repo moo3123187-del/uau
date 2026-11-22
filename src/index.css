@@ -23,6 +23,7 @@
 
   code, pre, textarea.font-mono, .font-mono {
     font-family: var(--font-mono);
+    font-variant-ligatures: none;
   }
 }
 

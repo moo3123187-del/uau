@@ -139,6 +139,7 @@ export interface LessonProgressRecord {
 
 export interface StudioSettings {
   editorFontSize: number;
+  uiTextScale: 'compact' | 'standard' | 'large';
   tabSize: 2 | 4;
   wordWrap: boolean;
   autoClosePairs: boolean;

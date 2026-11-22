@@ -592,7 +592,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               const startX = e.clientX;
               const startW = layout.guideWidth;
               startDrag(e, 'col-resize', (ev) => {
-                const nextW = Math.max(250, Math.min(540, startW + (ev.clientX - startX)));
+                const nextW = Math.max(260, Math.min(580, startW + (ev.clientX - startX)));
                 updateLayout({ guideWidth: nextW });
               });
             }}
@@ -605,14 +605,14 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
       {/* Center Column: Studio Run Bar + Resizable Code/3D Viewport + Resizable Output Console */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Run & Layout Toolbar */}
-        <div className="h-11 bg-[#121824] border-b border-slate-800 px-3 flex items-center justify-between gap-3 shrink-0 overflow-x-auto">
+        <div className="h-12 bg-[#121824] border-b border-slate-800 px-3.5 flex items-center justify-between gap-3 shrink-0 overflow-x-auto">
           <div className="flex items-center gap-2 shrink-0">
             {!isPlaying ? (
               <button
                 type="button"
                 onClick={handlePlay}
                 title="Playtest scripts (F5)"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[0.8125rem] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 Play
@@ -623,7 +623,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                   type="button"
                   onClick={handleStop}
                   title="Stop Playtest (F5 / Shift+F5)"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   Stop
@@ -632,7 +632,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handlePlay}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     title="Restart Playtest with your latest code edits"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
@@ -644,7 +644,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-[#192233] hover:bg-[#233047] text-slate-300 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-[#192233] hover:bg-[#233047] text-slate-300 text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reset
@@ -656,7 +656,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setCenterView('split')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                 centerView === 'split'
                   ? 'bg-[#1D273B] text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -668,7 +668,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setCenterView('code')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                 centerView === 'code'
                   ? 'bg-[#1D273B] text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -680,7 +680,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setCenterView('stage')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                 centerView === 'stage'
                   ? 'bg-[#1D273B] text-white'
                   : 'text-slate-400 hover:text-slate-200'
@@ -696,7 +696,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setShowGuide((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium border transition-colors whitespace-nowrap cursor-pointer ${
                 showGuide
                   ? 'bg-[#192233] border-slate-700 text-slate-100'
                   : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
@@ -709,7 +709,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setShowConsole((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium border transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
                 showConsole
                   ? 'bg-[#192233] border-slate-700 text-slate-100'
                   : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
@@ -722,7 +722,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setShowInspector((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium border transition-colors whitespace-nowrap cursor-pointer ${
                 showInspector
                   ? 'bg-[#192233] border-slate-700 text-slate-100'
                   : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
@@ -853,7 +853,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               const startX = e.clientX;
               const startW = layout.inspectorWidth;
               startDrag(e, 'col-resize', (ev) => {
-                const nextW = Math.max(230, Math.min(460, startW + (startX - ev.clientX)));
+                const nextW = Math.max(240, Math.min(480, startW + (startX - ev.clientX)));
                 updateLayout({ inspectorWidth: nextW });
               });
             }}

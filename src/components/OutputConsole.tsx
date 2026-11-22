@@ -56,7 +56,7 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
           <button
             type="button"
             onClick={() => setTab('output')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'output'
                 ? 'bg-[#1D273B] text-white'
                 : 'text-slate-400 hover:text-slate-200'
@@ -67,7 +67,7 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
           <button
             type="button"
             onClick={() => setTab('network')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'network'
                 ? 'bg-[#1D273B] text-white'
                 : 'text-slate-400 hover:text-slate-200'
@@ -78,7 +78,7 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
           <button
             type="button"
             onClick={() => setTab('datastores')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-2.5 py-1 rounded text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'datastores'
                 ? 'bg-[#1D273B] text-white'
                 : 'text-slate-400 hover:text-slate-200'
@@ -91,14 +91,14 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           {tab === 'output' && (
             <>
-              <div className="hidden sm:flex items-center gap-1 bg-[#0B0F17] border border-slate-800 rounded px-2 py-0.5">
-                <Search className="w-3 h-3 text-slate-500" />
+              <div className="hidden sm:flex items-center gap-1.5 bg-[#0B0F17] border border-slate-800 rounded px-2.5 py-1">
+                <Search className="w-3.5 h-3.5 text-slate-500" />
                 <input
                   type="text"
                   value={logFilter}
                   onChange={(e) => setLogFilter(e.target.value)}
                   placeholder="Filter output..."
-                  className="bg-transparent text-[11px] text-slate-200 placeholder:text-slate-500 focus:outline-none w-28 md:w-36"
+                  className="bg-transparent text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none w-32 md:w-40"
                 />
                 {logFilter && (
                   <button
@@ -106,18 +106,18 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
                     onClick={() => setLogFilter('')}
                     className="text-slate-500 hover:text-white cursor-pointer"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
-              <div className="flex items-center bg-[#0B0F17] border border-slate-800 rounded p-0.5 text-[11px]">
+              <div className="flex items-center bg-[#0B0F17] border border-slate-800 rounded p-0.5 text-xs">
                 {(['all', 'warn', 'error'] as const).map((lvl) => (
                   <button
                     key={lvl}
                     type="button"
                     onClick={() => setLevelFilter(lvl)}
-                    className={`px-1.5 py-0.5 rounded capitalize cursor-pointer ${
+                    className={`px-2 py-0.5 rounded capitalize cursor-pointer ${
                       levelFilter === lvl
                         ? 'bg-[#1D273B] text-white'
                         : 'text-slate-400 hover:text-slate-200'
@@ -133,15 +133,15 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
           <button
             type="button"
             onClick={onClear}
-            className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 px-2 py-0.5 rounded hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-3.5 h-3.5" />
             <span>Clear</span>
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2.5 font-mono text-xs space-y-1">
+      <div className="flex-1 overflow-y-auto p-3 font-mono text-sm space-y-1">
         {tab === 'output' && (
           <>
             {filteredLogs.length === 0 ? (
@@ -231,8 +231,8 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
 
       {/* Roblox Studio Command Bar */}
       {onExecuteCommand && (
-        <div className="h-8 px-3 bg-[#0A0F18] border-t border-slate-800 flex items-center gap-2 shrink-0">
-          <ChevronRight className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+        <div className="h-9 px-3 bg-[#0A0F18] border-t border-slate-800 flex items-center gap-2 shrink-0">
+          <ChevronRight className="w-4 h-4 text-sky-400 shrink-0" />
           <input
             ref={cmdInputRef}
             type="text"
@@ -260,13 +260,13 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
               }
             }}
             placeholder='Command Bar: run Luau (e.g. print(#workspace:GetChildren()))'
-            className="flex-1 min-w-0 bg-transparent font-mono text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent font-mono text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
           />
           {cmdText.trim() && (
             <button
               type="button"
               onClick={handleRunCmd}
-              className="px-2 py-0.5 rounded bg-[#1D273B] hover:bg-[#2563EB] text-slate-200 hover:text-white text-[11px] font-medium cursor-pointer shrink-0"
+              className="px-2.5 py-1 rounded bg-[#1D273B] hover:bg-[#2563EB] text-slate-200 hover:text-white text-xs font-medium cursor-pointer shrink-0"
             >
               Run
             </button>

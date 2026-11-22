@@ -258,6 +258,39 @@ export const StudioSettingsModal: React.FC<StudioSettingsModalProps> = ({ open, 
 
           {tab === 'studio' && (
             <div className="space-y-4">
+              <div className="pb-3 border-b border-slate-800/70">
+                <div className="flex items-center justify-between gap-4 mb-2">
+                  <div>
+                    <div className="text-xs font-medium text-slate-100">Interface Text Scale</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Adjust text size across Guide, Explorer, Properties, and Output panels.
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      ['compact', 'Compact'],
+                      ['standard', 'Standard'],
+                      ['large', 'Large (Big Screen)'],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => updateSetting('uiTextScale', val)}
+                      className={`py-1.5 px-2.5 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+                        settings.uiTextScale === val
+                          ? 'bg-[#182338] border-[#2563EB] text-white'
+                          : 'bg-[#0B0F17] border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <ToggleRow
                   label="Clear Output on Play"

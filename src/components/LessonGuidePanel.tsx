@@ -66,7 +66,7 @@ function renderTeachingText(text: string): React.ReactNode[] {
     parts.push(
       <code
         key={key++}
-        className={`font-mono text-[11.5px] ${
+        className={`font-mono text-[0.86em] px-1 py-0.5 rounded bg-slate-800/65 ${
           isStringLiteral ? 'text-emerald-300' : 'text-sky-300'
         }`}
       >
@@ -149,10 +149,10 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
   if (mode === 'sandbox') {
     return (
       <aside className="flex flex-col h-full bg-[#121824] border-r border-slate-800 min-h-0">
-        <div className="px-4 py-3 border-b border-slate-800">
-          <div className="text-[11px] font-medium text-sky-400">Free-Build Mode</div>
-          <h2 className="text-sm font-semibold text-white mt-0.5">Model-Free Sandbox</h2>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+        <div className="px-4 py-3.5 border-b border-slate-800">
+          <div className="text-xs font-medium text-sky-400">Free-Build Mode</div>
+          <h2 className="text-base font-semibold text-white mt-0.5">Model-Free Sandbox</h2>
+          <p className="text-sm text-slate-400 mt-1 leading-relaxed">
             Build Parts, GUIs, and server systems purely with Luau.
           </p>
         </div>
@@ -264,15 +264,15 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
   return (
     <aside className="flex flex-col h-full bg-[#121824] border-r border-slate-800 min-h-0">
       {/* Compact Lesson Header */}
-      <div className="px-4 py-3 border-b border-slate-800 space-y-1">
-        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 tabular-nums">
+      <div className="px-4 py-3.5 border-b border-slate-800 space-y-1">
+        <div className="flex items-center justify-between gap-2 text-xs text-slate-400 tabular-nums">
           <span>
             Module {lesson.moduleNumber} · {lessonIndex + 1}/{totalLessons}
           </span>
           <span className="text-sky-400 font-medium">+{lesson.xp} XP</span>
         </div>
         <div className="flex items-start justify-between gap-2">
-          <h2 className="text-sm font-semibold text-white leading-snug">{lesson.title}</h2>
+          <h2 className="text-base font-semibold text-white leading-snug">{lesson.title}</h2>
           {isCompleted && (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-label="Completed" />
           )}
@@ -280,15 +280,15 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
       </div>
 
       {/* Balanced Teaching + Hands-On Flow */}
-      <div className="flex-1 overflow-y-auto px-4 py-3.5 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Core Concept Points (Visible immediately, scannable with highlighted syntax) */}
-        <section className="space-y-2">
-          <div className="text-xs font-semibold text-white">Learn</div>
-          <ul className="space-y-2">
+        <section className="space-y-2.5">
+          <div className="text-sm font-semibold text-white">Learn</div>
+          <ul className="space-y-2.5">
             {conceptPoints.map((point, idx) => (
               <li
                 key={idx}
-                className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed"
+                className="flex items-start gap-2 text-sm text-slate-300 leading-[1.6]"
               >
                 <span className="text-slate-500 select-none mt-0.5">•</span>
                 <span>{renderTeachingText(point)}</span>
@@ -297,8 +297,8 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
           </ul>
 
           {lesson.beginnerTip && (
-            <div className="pt-1 flex items-start gap-1.5 text-xs text-amber-200/90 leading-relaxed">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
+            <div className="pt-1 flex items-start gap-2 text-sm text-amber-200/90 leading-[1.6]">
+              <Lightbulb className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
               <span>
                 <span className="font-semibold text-amber-300">Tip: </span>
                 {renderTeachingText(lesson.beginnerTip)}
@@ -310,39 +310,39 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
         {/* Copyable Example Pattern */}
         {lesson.codeExample && (
           <section className="rounded-lg bg-[#0B0F17] border border-slate-800 overflow-hidden">
-            <div className="px-3 py-1.5 border-b border-slate-800/80 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-slate-400">Example</span>
+            <div className="px-3.5 py-2 border-b border-slate-800/80 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Example</span>
               <button
                 type="button"
                 onClick={handleCopyExample}
-                className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 title="Copy example to clipboard"
               >
                 {copiedExample ? (
                   <>
-                    <Check className="w-3 h-3 text-emerald-400" />
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-emerald-400">Copied</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-3.5 h-3.5" />
                     <span>Copy</span>
                   </>
                 )}
               </button>
             </div>
-            <pre className="p-3 font-mono text-xs text-sky-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+            <pre className="p-3.5 font-mono text-sm text-sky-300 overflow-x-auto whitespace-pre-wrap leading-[1.55]">
               {lesson.codeExample}
             </pre>
           </section>
         )}
 
         {/* Interactive Steps */}
-        <section className="pt-1 border-t border-slate-800/80 space-y-2">
-          <div className="text-xs font-semibold text-white">Your Turn</div>
-          <ol className="space-y-1.5">
+        <section className="pt-2 border-t border-slate-800/80 space-y-2.5">
+          <div className="text-sm font-semibold text-white">Your Turn</div>
+          <ol className="space-y-2.5">
             {lesson.objectives.map((obj, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed">
+              <li key={idx} className="flex items-start gap-2 text-sm text-slate-200 leading-[1.6]">
                 <span className="text-sky-400 font-mono tabular-nums shrink-0">
                   {idx + 1}.
                 </span>
@@ -355,13 +355,13 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
         {/* Verification Feedback */}
         {verification && (
           <section
-            className={`rounded-lg border p-3 space-y-2 ${
+            className={`rounded-lg border p-3.5 space-y-2 ${
               verification.passed
                 ? 'bg-emerald-950/30 border-emerald-800/70'
                 : 'bg-rose-950/25 border-rose-800/70'
             }`}
           >
-            <div className="flex items-start gap-2 text-xs font-semibold">
+            <div className="flex items-start gap-2 text-sm font-semibold">
               {verification.passed ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               ) : (
@@ -371,9 +371,9 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
                 {verification.summary}
               </span>
             </div>
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {verification.checks.map((chk, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-[11px]">
+                <li key={idx} className="flex items-start gap-2 text-xs">
                   <span className={chk.passed ? 'text-emerald-400' : 'text-rose-400'}>
                     {chk.passed ? '✓' : '✗'}
                   </span>
@@ -390,10 +390,10 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
               <button
                 type="button"
                 onClick={onNextLesson}
-                className="w-full mt-1 py-1.5 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                className="w-full mt-1 py-2 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold inline-flex items-center justify-center gap-1 transition-colors cursor-pointer"
               >
                 <span>Continue to Next Lesson</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             )}
           </section>
@@ -401,24 +401,24 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
 
         {/* Optional Pro Note & Step Hints */}
         {(lesson.proNote || lesson.hints.length > 0) && (
-          <div className="pt-1 border-t border-slate-800/80 space-y-1.5">
+          <div className="pt-2 border-t border-slate-800/80 space-y-2">
             {lesson.proNote && (
               <div>
                 <button
                   type="button"
                   onClick={() => setShowProNote((v) => !v)}
-                  className="w-full flex items-center justify-between py-1 text-xs font-medium text-indigo-300/90 hover:text-indigo-200 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between py-1 text-sm font-medium text-indigo-300/90 hover:text-indigo-200 transition-colors cursor-pointer"
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Sparkles className="w-4 h-4" />
                     <span>Pro Studio Note</span>
                   </span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform ${showProNote ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${showProNote ? 'rotate-180' : ''}`}
                   />
                 </button>
                 {showProNote && (
-                  <p className="mt-1 pb-1 text-xs text-slate-300 leading-relaxed">
+                  <p className="mt-1.5 pb-1 text-sm text-slate-300 leading-[1.6]">
                     {renderTeachingText(lesson.proNote)}
                   </p>
                 )}
@@ -430,20 +430,20 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowHints((s) => !s)}
-                  className="w-full flex items-center justify-between py-1 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between py-1 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    <HelpCircle className="w-4 h-4" />
                     <span>Hints ({lesson.hints.length})</span>
                   </span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform ${showHints ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${showHints ? 'rotate-180' : ''}`}
                   />
                 </button>
                 {showHints && (
-                  <ul className="mt-1 space-y-1.5 pl-1 pb-1 text-xs text-slate-300">
+                  <ul className="mt-1.5 space-y-1.5 pl-1 pb-1 text-sm text-slate-300">
                     {lesson.hints.map((h, i) => (
-                      <li key={i} className="leading-relaxed">
+                      <li key={i} className="leading-[1.6]">
                         • {renderTeachingText(h)}
                       </li>
                     ))}
@@ -456,19 +456,19 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="p-3 border-t border-slate-800 bg-[#0F141F] space-y-2">
+      <div className="p-3.5 border-t border-slate-800 bg-[#0F141F] space-y-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onVerify}
-            className="flex-1 py-2 px-3 rounded-lg bg-[#2563EB] hover:bg-blue-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+            className="flex-1 py-2.5 px-3 rounded-lg bg-[#2563EB] hover:bg-blue-500 text-white text-sm font-semibold transition-colors cursor-pointer"
           >
             Check Solution
           </button>
           <button
             type="button"
             onClick={onResetLesson}
-            className="py-2 px-2.5 rounded-lg bg-[#192233] hover:bg-[#233047] text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+            className="py-2.5 px-3 rounded-lg bg-[#192233] hover:bg-[#233047] text-slate-300 text-sm font-medium transition-colors cursor-pointer"
             title="Reset starter script"
           >
             Reset
@@ -480,9 +480,9 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
             type="button"
             onClick={onPrevLesson}
             disabled={lessonIndex === 0}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-sm font-medium text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
           >
-            <ChevronLeft className="w-3.5 h-3.5" />
+            <ChevronLeft className="w-4 h-4" />
             Previous
           </button>
           <button
@@ -496,17 +496,17 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
                 ? 'Go to next lesson'
                 : 'Pass Check Solution to unlock the next lesson'
             }
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-sm font-medium transition-colors ${
               canGoNext
                 ? 'text-emerald-300 hover:bg-emerald-950/50 cursor-pointer'
                 : 'text-slate-500 opacity-50 cursor-not-allowed'
             }`}
           >
             {lessonIndex < totalLessons - 1 && !canGoNext && (
-              <Lock className="w-3 h-3 text-slate-400" />
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
             )}
             <span>Next Lesson</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>

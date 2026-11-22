@@ -392,7 +392,7 @@ function highlightLuauLine(
     if (closeIdx === -1) {
       return {
         nodes: [
-          <span key={0} className="text-slate-500 italic">
+          <span key={0} className="text-slate-500">
             {line}
           </span>,
         ],
@@ -401,7 +401,7 @@ function highlightLuauLine(
     }
     const commentPart = line.slice(0, closeIdx + 2);
     nodes.push(
-      <span key={key++} className="text-slate-500 italic">
+      <span key={key++} className="text-slate-500">
         {commentPart}
       </span>
     );
@@ -413,14 +413,14 @@ function highlightLuauLine(
       const closeIdx = line.indexOf(']]', i + 4);
       if (closeIdx === -1) {
         nodes.push(
-          <span key={key++} className="text-slate-500 italic">
+          <span key={key++} className="text-slate-500">
             {line.slice(i)}
           </span>
         );
         return { nodes, endsInBlockComment: true };
       }
       nodes.push(
-        <span key={key++} className="text-slate-500 italic">
+        <span key={key++} className="text-slate-500">
           {line.slice(i, closeIdx + 2)}
         </span>
       );
@@ -434,7 +434,7 @@ function highlightLuauLine(
       nodes.push(
         <span
           key={key++}
-          className={isDirective ? 'text-amber-300 font-semibold' : 'text-slate-500 italic'}
+          className={isDirective ? 'text-amber-300 font-semibold' : 'text-slate-500'}
         >
           {rest}
         </span>
@@ -662,7 +662,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const visualCols = rawColText.replace(/\t/g, tabSpaces).length;
 
     const fontPx = settings.editorFontSize;
-    const lineHeightPx = fontPx * 1.65;
+    const lineHeightPx = fontPx * 1.55;
     const charWidthPx = fontPx * 0.6;
     const scrollTop = el?.scrollTop ?? 0;
     const scrollLeft = el?.scrollLeft ?? 0;
@@ -1170,7 +1170,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 key={s.path}
                 type="button"
                 onClick={() => onSelectScript(s.path)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   isActive
                     ? 'bg-[#1D273B] text-slate-100 border border-slate-700'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
@@ -1178,7 +1178,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
               >
                 <FileCode2 className={`w-3.5 h-3.5 ${badgeColor}`} />
                 <span>{s.name}</span>
-                <span className="text-[10px] text-slate-500 font-mono">
+                <span className="text-[11px] text-slate-500 font-mono">
                   {s.className === 'Script' ? 'Server' : s.className === 'LocalScript' ? 'Client' : 'Module'}
                 </span>
                 {hasErr && <AlertCircle className="w-3 h-3 text-rose-400" />}
@@ -1194,7 +1194,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             requestAnimationFrame(() => findInputRef.current?.focus());
           }}
           title="Find & Replace (Ctrl+F)"
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium shrink-0 transition-colors cursor-pointer ${
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium shrink-0 transition-colors cursor-pointer ${
             findOpen
               ? 'bg-[#1D273B] text-sky-300 border border-slate-700'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -1317,7 +1317,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <div
           ref={gutterRef}
-          className="w-12 py-3.5 pb-8 bg-[#0C111A] border-r border-slate-800/80 text-right pr-3 select-none overflow-hidden font-mono leading-[1.65] text-slate-600 tabular-nums shrink-0"
+          className="w-12 py-3.5 pb-8 bg-[#0C111A] border-r border-slate-800/80 text-right pr-3 select-none overflow-hidden font-mono leading-[1.55] text-slate-600 tabular-nums shrink-0"
           style={{ fontSize: `${settings.editorFontSize}px` }}
         >
           {lines.map((_, idx) => {
@@ -1346,7 +1346,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           <div
             ref={backdropRef}
             aria-hidden="true"
-            className={`absolute inset-0 py-3.5 pb-8 px-4 font-mono leading-[1.65] text-slate-200 overflow-hidden pointer-events-none ${
+            className={`absolute inset-0 py-3.5 pb-8 px-4 font-mono leading-[1.55] text-slate-200 overflow-hidden pointer-events-none ${
               settings.wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
             }`}
             style={{ tabSize: settings.tabSize, fontSize: `${settings.editorFontSize}px` }}
@@ -1397,7 +1397,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             autoComplete="off"
             autoCorrect="off"
             aria-label="Luau code editor"
-            className={`relative z-10 w-full h-full py-3.5 pb-8 px-4 bg-transparent text-transparent caret-blue-400 font-mono leading-[1.65] resize-none focus:outline-none ${
+            className={`relative z-10 w-full h-full py-3.5 pb-8 px-4 bg-transparent text-transparent caret-blue-400 font-mono leading-[1.55] resize-none focus:outline-none ${
               settings.wordWrap
                 ? 'whitespace-pre-wrap break-words overflow-y-auto overflow-x-hidden'
                 : 'whitespace-pre overflow-auto'
@@ -1451,7 +1451,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* Fixed-Height Studio Status Footer (no layout shift when errors appear) */}
-      <div className="h-6 px-3 bg-[#0C111A] border-t border-slate-800/80 flex items-center justify-between gap-3 text-[11px] shrink-0">
+      <div className="h-7 px-3 bg-[#0C111A] border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs shrink-0">
         {activeDiagnostics.length > 0 ? (
           <button
             type="button"
@@ -1459,7 +1459,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 truncate cursor-pointer text-left"
             title={activeDiagnostics[0].message}
           >
-            <AlertCircle className="w-3 h-3 shrink-0" />
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">
               Line {activeDiagnostics[0].line}: {activeDiagnostics[0].message}
             </span>
@@ -1469,7 +1469,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             Luau · Ctrl+Space IntelliSense
           </span>
         )}
-        <span className="text-slate-500 font-mono tabular-nums shrink-0">
+        <span className="text-slate-400 font-mono tabular-nums shrink-0">
           Ln {cursorPos.line}, Col {cursorPos.col}
         </span>
       </div>

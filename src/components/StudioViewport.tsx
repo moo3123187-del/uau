@@ -951,7 +951,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
       )}
 
       {/* Minimal Top-Left Viewport Context */}
-      <div className="absolute top-3 left-3 z-10 pointer-events-none flex items-center gap-2 text-[11px] font-medium text-slate-300 bg-slate-950/80 border border-slate-800 rounded-md px-2.5 py-1">
+      <div className="absolute top-3 left-3 z-10 pointer-events-none flex items-center gap-2 text-xs font-medium text-slate-300 bg-slate-950/80 border border-slate-800 rounded-md px-3 py-1.5">
         <span>3D Studio Viewport</span>
         <span aria-hidden="true" className="text-slate-600">·</span>
         <span className={isPlaying ? 'text-emerald-400' : 'text-slate-400'}>
@@ -964,7 +964,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
         <button
           type="button"
           onClick={() => setDockCollapsed((c) => !c)}
-          className="mb-1 flex items-center gap-1.5 rounded-t-md bg-slate-900/95 border border-b-0 border-slate-700/80 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          className="mb-1 flex items-center gap-1.5 rounded-t-md bg-slate-900/95 border border-b-0 border-slate-700/80 px-3 py-1 text-xs font-medium text-slate-300 hover:text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer"
         >
           {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           <span>{dockCollapsed ? 'Show Controls' : 'Hide Controls'}</span>
@@ -977,21 +977,21 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
               <button
                 type="button"
                 onClick={() => setCameraPreset('iso')}
-                className="px-2 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
+                className="px-2 py-1 text-xs font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
               >
                 Orbit View
               </button>
               <button
                 type="button"
                 onClick={() => setCameraPreset('top')}
-                className="px-2 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
+                className="px-2 py-1 text-xs font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
               >
                 Top
               </button>
               <button
                 type="button"
                 onClick={() => setCameraPreset('front')}
-                className="px-2 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
+                className="px-2 py-1 text-xs font-medium text-slate-200 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
               >
                 Front
               </button>
@@ -999,9 +999,9 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
                 type="button"
                 onClick={focusSelected}
                 title="Focus camera on selected Part (F)"
-                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-sky-300 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-sky-300 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <Crosshair className="w-3 h-3" />
+                <Crosshair className="w-3.5 h-3.5" />
                 Focus (F)
               </button>
             </div>
@@ -1009,7 +1009,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
             <button
               type="button"
               onClick={() => updateSetting('showAxes', !settings.showAxes)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap shrink-0 cursor-pointer ${
                 settings.showAxes ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
@@ -1017,7 +1017,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
               <span>Axes</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-1.5 pl-1 text-[11px] text-slate-400 whitespace-nowrap shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 pl-1 text-xs text-slate-400 whitespace-nowrap shrink-0">
               <Gamepad2 className="w-3.5 h-3.5 text-slate-400" />
               <span>WASD+Q/E: Fly · Shift: Slow · F: Focus</span>
             </div>
