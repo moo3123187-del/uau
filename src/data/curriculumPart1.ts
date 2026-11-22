@@ -30,12 +30,13 @@ export const CURRICULUM_PART_1: LessonDefinition[] = [
     estimatedMinutes: 3,
     summary: 'Learn what a Script is, what text strings are, and how to make Roblox Studio talk to you in the Output console.',
     explanation: [
-      'Welcome! If you have never written a single line of code before, you are in the exact right place. In Roblox Studio, you control the game by writing instructions inside a Script.',
-      'The simplest instruction in Luau (Roblox’s programming language) is print(). Whatever text you put inside quotation marks "..." inside the parentheses will appear in the Output console below when you press Play.',
-      'Think of quotation marks as a wrapper telling Roblox: "This is plain human words, not a command."'
+      'In Roblox Studio, scripts are lists of instructions that run top-to-bottom when you click Play.',
+      'print(...) is a built-in command that writes whatever is inside the parentheses ( ) into the Output console below.',
+      'Words inside double quotes "..." are called strings—the quotes tell Luau "this is literal text, not a command name."',
+      'Any line starting with `--` is a comment: a human note that Roblox completely skips when running your game.'
     ],
-    beginnerTip: 'Always match your opening and closing quotation marks ("Hello!") and parentheses ( ). If one is missing, Roblox cannot read the sentence.',
-    codeExample: 'print("Hello, Roblox!")\nprint("My first game starts here!")',
+    beginnerTip: 'Every opening quote " and parenthesis ( must have a matching closing " and ). Watch the syntax colors in the editor—strings turn green!',
+    codeExample: '-- Two dashes make a human comment (Roblox ignores this)\nprint("Hello, Roblox!")\nprint("Score:", 100) -- commas print multiple values with a space',
     objectives: [
       'Click Play to run the starter print() line.',
       'Add a second print("...") line with any custom message you want.',
@@ -83,12 +84,13 @@ print("Hello, Roblox!")
     estimatedMinutes: 5,
     summary: 'Store numbers, text strings, and booleans inside labeled boxes called variables.',
     explanation: [
-      'Games constantly need to remember things: how many coins a player has, their username, or whether a door is open. We store those values in variables using the keyword local.',
-      'Every variable has a data type: strings (text in quotes like "Knight"), numbers (like 100 or 3.5), and booleans (true or false).',
-      'Luau also lets you blend variables straight into backtick text using curly braces: `Coins: {coins}`.'
+      'Games need to remember changing info like coins, health, or player names. You create a named storage box using `local`, followed by a name, an `=`, and a value.',
+      'In Luau, `=` does NOT ask "are these equal?"—it means "store/assign the value on the right INTO the variable on the left." For example, `local coins = 50` puts 50 inside `coins`. Later, `coins = 75` replaces 50 with 75.',
+      'Common data types: strings (text in `"..."`), numbers (`100` or `3.5`), and booleans (`true` or `false` on/off switches).',
+      'Backticks `` `...` `` let you insert any variable straight into text using curly braces: `` `Coins: {coins}` ``.'
     ],
-    beginnerTip: 'Variable names cannot have spaces. Use camelCase like playerHealth or isAlive.',
-    codeExample: 'local heroName = "Alex"\nlocal coins = 50\nlocal isVip = true\nprint(`{heroName} has {coins} coins`)',
+    beginnerTip: 'Variable names cannot start with a number or have spaces. Pick clear camelCase names like `playerName` or `hasKey`, and write `local` only the first time you create it.',
+    codeExample: 'local heroName = "Alex" -- stores text (string) into heroName\nlocal coins = 50        -- stores a number into coins\nlocal isVip = true      -- stores a true/false switch (boolean)\n\ncoins = 75              -- updates coins (no "local" needed when reassigning)\nprint(`{heroName} now has {coins} coins`)',
     objectives: [
       'Create a local variable named playerName holding a string.',
       'Create a local variable named coins holding a number greater than 0.',
@@ -141,12 +143,13 @@ print(playerName, coins)
     estimatedMinutes: 6,
     summary: 'Teach your game to make choices based on scores, keys, or player health.',
     explanation: [
-      'A game needs rules: "IF the player has at least 50 coins, open the gate; ELSE tell them they need more coins."',
-      'In Luau, we write decisions with if ... then ... elseif ... else ... end. Notice how every if block closes with the word end.',
-      'Use == to check if two things are equal, ~= for not equal, >= for greater-or-equal, and "and" / "or" to combine conditions.'
+      'Game rules are decisions: "IF the player has enough coins AND high enough level, unlock the VIP gate; ELSE keep it locked."',
+      'Always keep `=` and `==` separate: a single `=` sets a value (`coins = 75`), while a double `==` asks a question ("is coins equal to 75?"). Use `~=` for "not equal", `>=` for "greater or equal", and `<=` for "less or equal".',
+      'Combine multiple checks using `and` (BOTH sides must be true) or `or` (AT LEAST ONE side must be true).',
+      'Every `if` statement needs `then` after its condition and `end` at the bottom so Luau knows where the conditional block finishes.'
     ],
-    beginnerTip: 'A single = stores a value (local x = 5). A double == asks a question (if x == 5 then).',
-    codeExample: 'local coins = 60\nif coins >= 50 then\n\tprint("Gate unlocked!")\nelse\n\tprint("Need more coins")\nend',
+    beginnerTip: 'Think of `if ... then ... else ... end` like a fork in the road. Use `Tab` to indent the lines inside so you can see which code belongs inside the block.',
+    codeExample: 'local gold = 80\nlocal hasPass = true\n\nif gold >= 50 and hasPass == true then\n\tprint("Gate unlocked!")\nelseif gold >= 50 then\n\tprint("Need the pass!")\nelse\n\tprint("Need more gold")\nend',
     objectives: [
       'Set coins to 75 (or higher) and level to 3 (or higher).',
       'Write an if / else check verifying coins >= 50 and level >= 2.',
@@ -200,12 +203,13 @@ end
     estimatedMinutes: 7,
     summary: 'Package reusable actions into functions and repeat actions cleanly using for loops and task.wait().',
     explanation: [
-      'Instead of copying and pasting the same 5 lines over and over, wrap them in a function! Functions take inputs (parameters) and can return an output.',
-      'To repeat something—like a 3-2-1 round countdown—use a numeric for loop: for i = 3, 1, -1 do ... end. The third number (-1) means count backwards by 1.',
-      'Inside loops, task.wait(0.3) pauses politely so the player can actually see each step happen in real time.'
+      'A `function` is a reusable recipe with a name. `local function countdown(startNum)` defines the recipe and names an input slot (`startNum`)—nothing runs yet until you call it later with `countdown(3)`, which puts `3` into `startNum`.',
+      'A numeric `for` loop repeats code automatically: `for i = start, stop, step do ... end`. Here `start` is the first number, `stop` is where to end, and `step` (`-1`) tells Luau how much to add each turn (counting down by 1).',
+      'The `..` operator glues strings and numbers together into one message (e.g. `"Round " .. i` becomes `"Round 3"`).',
+      'Inside loops, `task.wait(0.2)` pauses your script politely for 0.2 seconds so players see each count instead of everything flashing in 0.001s.'
     ],
-    beginnerTip: 'Never write a "while true do" loop without task.wait() inside it—otherwise your game will freeze!',
-    codeExample: 'local function announce(text)\n\tprint("[ROUND]", text)\nend\n\nfor i = 3, 1, -1 do\n\tannounce("Starting in " .. i)\n\ttask.wait(0.3)\nend',
+    beginnerTip: 'Defining a function is like writing a recipe on paper—you still have to call `countdown(3)` below it to actually cook it! And never write `while true do` without `task.wait()` inside.',
+    codeExample: '-- Define a function named "announce" with 1 input: message\nlocal function announce(message)\n\tprint("[ROUND] " .. message) -- ".." glues text together\nend\n\n-- Count from 3 down to 1 (step = -1)\nfor i = 3, 1, -1 do\n\tannounce("Starting in " .. i)\n\ttask.wait(0.3)\nend',
     objectives: [
       'Write a local function named countdown(startNum) that loops from startNum down to 1.',
       'Pause with task.wait(0.2) inside the loop and print each number.',
@@ -266,14 +270,17 @@ end
     estimatedMinutes: 5,
     summary: 'Control objects sitting inside the Explorer tree using Luau scripts instead of mouse clicks.',
     explanation: [
-      'Look at the Explorer panel on the right: every Roblox game is a family tree starting at game. Inside game are specialized folders called Services—like Workspace (everything visible in 3D), Players, Lighting, and ServerScriptService.',
-      'From a scripter’s perspective, you never need modeling tools to change the world. You can grab any Part in workspace by name (workspace:WaitForChild("TargetPad")) and change its Color, Material, Size, or Transparency on the fly!'
+      'Look at the Explorer panel on the right: every Roblox experience is a tree starting at `game`, containing Services like `Workspace` (visible 3D parts), `Players`, `Lighting`, and `ServerScriptService`.',
+      'Dot `.` vs Colon `:` — You use a colon `:` to ask an object to run an action (`workspace:WaitForChild("TargetPad")` waits until `"TargetPad"` loads and gives it back to you). You use a dot `.` to read or change a property stored on that object (`pad.Color` or `pad.Material`).',
+      'Using `=` on a property changes it live in 3D: `pad.Color = ...` means "set TargetPad’s Color to the new color on the right."',
+      '`Color3.fromRGB(r, g, b)` builds a 3D color by mixing Red, Green, and Blue light from `0` (none) to `255` (max). `Enum.Material` is Roblox’s built-in menu of official surface presets (`Neon`, `Metal`, `Wood`, `SmoothPlastic`), preventing spelling mistakes.'
     ],
-    beginnerTip: 'Click any Part in the 3D Viewport or Explorer to inspect its exact property names in the Properties panel.',
+    beginnerTip: 'Click any Part in the 3D Viewport or Explorer to see its exact property names in the Properties panel—and type `Enum.Material.` in the editor to pick materials from IntelliSense!',
+    codeExample: '-- ":" calls a method; "=" stores the returned Part inside wall\nlocal wall = workspace:WaitForChild("BlueWall")\n\n-- "." accesses a property; "=" assigns a new value to it\nwall.Color = Color3.fromRGB(59, 130, 246) -- Red=59, Green=130, Blue=246\nwall.Material = Enum.Material.Metal       -- Official Material preset from Enum',
     objectives: [
-      'Find TargetPad inside workspace.',
-      'Change TargetPad.Color to Color3.fromRGB(16, 185, 129) (Emerald).',
-      'Change TargetPad.Material to Enum.Material.Neon.'
+      'Notice how line 1 uses `=` and `:WaitForChild("TargetPad")` to store TargetPad inside `pad`.',
+      'Use `=` and `Color3.fromRGB(16, 185, 129)` to set `pad.Color` to Emerald green.',
+      'Use `=` and `Enum.Material.Neon` to set `pad.Material` so TargetPad glows.'
     ],
     hints: [
       'local pad = workspace:WaitForChild("TargetPad")',
@@ -342,14 +349,16 @@ print("Found pad:", pad.Name)
     estimatedMinutes: 6,
     summary: 'Spawn brand-new 3D blocks out of thin air using Instance.new() without touching any modeling tools.',
     explanation: [
-      'Why rely on pre-made models when Luau can generate entire structures? Instance.new("Part") creates a brand-new 3D block in memory.',
-      'Always configure Size, Position, Color, and Anchored = true BEFORE setting Parent = workspace (that’s a pro Roblox performance habit).',
-      'Notice Anchored = true: without it, Roblox gravity pulls the Part down!'
+      '`Instance.new("Part")` creates a brand-new 3D block in your script’s memory—it is completely invisible in the world until you assign `part.Parent = workspace`!',
+      '`Vector3.new(x, y, z)` stores 3 numbers for 3D Size or Position measured in studs: `X` = left/right, `Y` = up/down height, and `Z` = forward/back.',
+      'Every `=` line sets one property on `pillar`: `pillar.Anchored = true` locks the Part in midair (otherwise Roblox gravity drops it!), and `pillar.Parent = workspace` moves it into the visible 3D scene.'
     ],
+    beginnerTip: 'Always configure Size, Position, Color, and `Anchored = true` BEFORE setting `Parent = workspace`—putting an object into the world last is faster and prevents flicker.',
+    codeExample: 'local marker = Instance.new("Part")\nmarker.Name = "BeaconMarker"\nmarker.Size = Vector3.new(2, 2, 2)      -- 2 studs wide, tall, and deep\nmarker.Position = Vector3.new(4, 2, 0)  -- 4 right, 2 up, 0 front/back\nmarker.Anchored = true                  -- Don\'t fall from gravity\nmarker.Parent = workspace               -- Now it appears in 3D & Explorer!',
     objectives: [
-      'Create a Part named "ScriptPillar" with Instance.new("Part").',
-      'Set Size to Vector3.new(3, 8, 3), Position to Vector3.new(0, 4, 0), and Anchored = true.',
-      'Set Parent = workspace so it appears in the 3D Viewport.'
+      'Set `pillar.Size = Vector3.new(3, 8, 3)` and `pillar.Position = Vector3.new(0, 4, 0)`.',
+      'Set `pillar.Anchored = true` so gravity does not knock the pillar over.',
+      'Set `pillar.Parent = workspace` as the final step so it spawns in the 3D Viewport.'
     ],
     hints: [
       'local pillar = Instance.new("Part")',
@@ -399,14 +408,17 @@ pillar.Name = "ScriptPillar"
     estimatedMinutes: 8,
     summary: 'Combine loops with CFrame position + rotation math to build a curved 3D staircase automatically.',
     explanation: [
-      'Position only moves a Part. CFrame (Coordinate Frame) controls BOTH position and 3D rotation in one value!',
-      'You combine CFrames by multiplying them: CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(angle), 0).',
-      'By putting Instance.new("Part") inside a for loop, 10 lines of Luau can construct bridges, spiral towers, and arenas in milliseconds.'
+      '`Position` (`Vector3`) only sets where a Part sits, whereas `CFrame` (Coordinate Frame) stores BOTH 3D Position AND 3D Rotation in a single value.',
+      'You combine a position and a rotation by multiplying CFrames with `*`: `CFrame.new(x, y, z) * CFrame.Angles(rx, ry, rz)`.',
+      '`CFrame.Angles` expects radians instead of degrees, so wrap degrees inside `math.rad(degrees)` (e.g. `math.rad(45)`). Using `math.cos(angle) * radius` and `math.sin(angle) * radius` places parts cleanly around a circle!',
+      '`Color3.fromHSV(hue, sat, val)` picks colors smoothly around a rainbow wheel using `0` to `1` numbers (great inside loops!).'
     ],
+    beginnerTip: 'Inside the starter loop, `angle` is already calculated in radians (`math.rad(i * 25)`). Notice how `CFrame.Angles(0, -angle, 0)` spins around the vertical Y axis so each step turns along the spiral.',
+    codeExample: 'local ramp = Instance.new("Part")\nramp.Size = Vector3.new(4, 0.5, 6)\nramp.Anchored = true\n-- Place at (0, 2, 0), then tilt 20 degrees on X and turn 45 degrees on Y\nramp.CFrame = CFrame.new(0, 2, 0) * CFrame.Angles(math.rad(20), math.rad(45), 0)\nramp.Parent = workspace',
     objectives: [
-      'Use a for loop from 1 to 10 to spawn 10 Part steps inside workspace.',
-      'Position each step higher on Y (e.g., y = i * 1.2) and rotated with CFrame.Angles.',
-      'Ensure every step is Anchored = true.'
+      'Replace line 9 (`step.CFrame = CFrame.new(0, i, 0)`) so steps curve in a circle using `math.cos(angle) * 6` and `math.sin(angle) * 6`.',
+      'Raise each step along Y (`i * 1.1`) and multiply `* CFrame.Angles(0, -angle, 0)` so every step faces the curve.',
+      'Keep every step `Anchored = true` and press Play to build the spiral staircase.'
     ],
     hints: [
       'Inside the loop: step.CFrame = CFrame.new(math.cos(a) * 6, i * 1.1, math.sin(a) * 6) * CFrame.Angles(0, -a, 0)',
@@ -462,13 +474,17 @@ end
     estimatedMinutes: 7,
     summary: 'Assemble multi-part structures into a Model, weld them together, clone them, and move the whole assembly with :PivotTo().',
     explanation: [
-      'When you build an object out of 3 script-created Parts (like a glowing beacon or crate), group them inside a Model and assign Model.PrimaryPart.',
-      'A WeldConstraint locks Part0 and Part1 together so they act as one rigid unit. Calling model:Clone() duplicates the entire assembly, and model:PivotTo(cframe) teleports the whole group cleanly!'
+      'A `Model` acts like a group folder for multi-part builds (like a beacon, crate, or turret). Setting `model.PrimaryPart = base` chooses which Part acts as the Model’s main anchor point.',
+      'A `WeldConstraint` glues two Parts together rigidly: set `weld.Part0 = base` and `weld.Part1 = core` (passing `base` as the 2nd argument to `Instance.new("WeldConstraint", base)` sets `weld.Parent = base` automatically).',
+      '`beacon:Clone()` duplicates the Model and all its welded children in memory—just like `Instance.new()`, remember to set `copy.Parent = workspace` so the clone appears!',
+      '`copy:PivotTo(CFrame.new(8, 1, 0))` moves the ENTIRE cloned Model as one connected unit without breaking its parts apart.'
     ],
+    beginnerTip: 'Always set `copy.Parent = workspace` (and give it a new `Name` if you want to distinguish them in Explorer) right after calling `:Clone()`.',
+    codeExample: 'local crate = Instance.new("Model")\nlocal body = Instance.new("Part", crate)\nlocal lid = Instance.new("Part", crate)\n\ncrate.PrimaryPart = body\nlocal weld = Instance.new("WeldConstraint", body)\nweld.Part0 = body\nweld.Part1 = lid\ncrate.Parent = workspace\n\nlocal secondCrate = crate:Clone()\nsecondCrate.Parent = workspace\nsecondCrate:PivotTo(CFrame.new(6, 1, 0))',
     objectives: [
-      'Create a Model named "Beacon" containing at least 2 Parts (Base and Core).',
-      'Assign Beacon.PrimaryPart = basePart and create a WeldConstraint linking Base and Core.',
-      'Clone the Beacon once into workspace and move the clone with :PivotTo(CFrame.new(8, 1, 0)).'
+      'Set `beacon.PrimaryPart = base` so the Model has a main pivot Part.',
+      'Create a `WeldConstraint` parented to `base` with `Part0 = base` and `Part1 = core`.',
+      'Parent `beacon` to `workspace`, then `:Clone()` it, parent the clone to `workspace`, and call `:PivotTo(CFrame.new(8, 1, 0))`.'
     ],
     hints: [
       'local weld = Instance.new("WeldConstraint", base); weld.Part0 = base; weld.Part1 = core',
@@ -542,14 +558,15 @@ beacon.Parent = workspace
     estimatedMinutes: 7,
     summary: 'React the instant a player touches a Part using :Connect() and prevent spam with a debounce cooldown.',
     explanation: [
-      'Games don’t run top-to-bottom once and stop—they react to events! Every Roblox signal has a :Connect(function(...) end) method.',
-      'When a character steps on a Part, Part.Touched fires. Because characters have multiple limbs, Touched can fire dozens of times in 1 second unless you add a debounce boolean (local cooldown = false).'
+      'Most game code is event-driven: instead of checking constantly, you attach a listener function to a signal with `:Connect(function(...) ... end)`. Whenever that event happens, Roblox runs your connected function automatically.',
+      'When a player touches a Part, `lava.Touched` fires and passes `hit` (the exact body Part that touched it, like `"LeftFoot"` or `"HumanoidRootPart"`).',
+      'Because multiple limbs touch at once, `Touched` can fire 20 times in a split second! A `debounce` boolean (`true`/`false` lock) fixes that: `if debounce then return end` immediately exits the function early (`return` stops the rest of the callback from running), then we set `debounce = true`, wait `task.wait(1)`, and unlock `debounce = false`.'
     ],
-    beginnerTip: 'In the 3D Viewport during Play, click "Avatar" or use WASD to walk onto the red LavaPad (or click it to test Touch)!',
+    beginnerTip: 'In the 3D Viewport during Play, use WASD to walk your character onto the red LavaPad (or click LavaPad in the 3D Viewport to test a touch event).',
+    codeExample: 'local pad = workspace:WaitForChild("HealPad")\nlocal cooldown = false\n\npad.Touched:Connect(function(hit)\n\tif cooldown then return end -- Exit early while locked!\n\tcooldown = true\n\tprint("Healed by:", hit.Name)\n\ttask.wait(2)              -- Wait 2 seconds before unlocking\n\tcooldown = false\nend)',
     objectives: [
-      'Connect a function to LavaPad.Touched.',
-      'Use a debounce variable so it prints "Ouch! Touched lava" at most once every 1 second.',
-      'Walk onto or trigger LavaPad in the 3D Viewport while Playing.'
+      'Read how `lava.Touched:Connect(function(hit)` uses `debounce` and early `return` to prevent spam.',
+      'Press Play and walk onto the red LavaPad in the 3D Viewport using WASD so it prints "Ouch! Touched lava".'
     ],
     hints: [
       'local debounce = false',
@@ -624,13 +641,15 @@ print("Walk onto the red LavaPad with WASD during Play!")
     estimatedMinutes: 6,
     summary: 'Create interactive doors, chests, and switches by attaching ClickDetector or ProximityPrompt by script.',
     explanation: [
-      'ClickDetector lets players click a 3D Part directly with their mouse (MouseClick). ProximityPrompt pops up a clean [E] interaction prompt when a player walks close (Triggered).',
-      'You can create and attach both strictly via Instance.new() in your script!'
+      '`ProximityPrompt` adds an interactive `[E]` key prompt over a 3D Part when a player walks close (`MaxActivationDistance` controls how many studs away it appears, `ActionText` sets the button label, and `ObjectText` sets the item title).',
+      'Its signal `prompt.Triggered:Connect(function(player) ... end)` automatically hands your function the exact `player` who pressed `E`—no `hit` limb guessing needed!',
+      'Inside the callback, you can modify the Part (`Color`, `Material`) and read `player.Name` using dot `.` property access.'
     ],
+    beginnerTip: 'When you walk close to ChestPart during Play, either press `E` on your keyboard or click the floating `[E] Open Chest` prompt directly in the 3D Viewport.',
+    codeExample: 'local door = workspace:WaitForChild("Door")\nlocal click = Instance.new("ClickDetector", door)\n\n-- ClickDetector fires MouseClick and passes the clicking player\nclick.MouseClick:Connect(function(player)\n\tprint(player.Name, "clicked the door!")\nend)',
     objectives: [
-      'Create a ProximityPrompt inside ChestPart with ActionText = "Open Chest".',
-      'Connect to prompt.Triggered so triggering it turns ChestPart gold and prints "Chest opened!".',
-      'Walk near ChestPart in Play mode and press E (or click the prompt button) to trigger it.'
+      'Inspect how `Instance.new("ProximityPrompt")` configures `ActionText`, `ObjectText`, `MaxActivationDistance`, and `Parent = chest`.',
+      'Press Play, walk near ChestPart with WASD, and press `E` (or click the prompt) to turn it Neon Gold and print `"Chest opened by ..."`.'
     ],
     hints: [
       'local prompt = Instance.new("ProximityPrompt", chest)',
@@ -707,13 +726,16 @@ print("Walk near the chest with WASD and press E to open it!")
     estimatedMinutes: 7,
     summary: 'Animate spinning blades and hovering platforms smoothly every frame using deltaTime.',
     explanation: [
-      'A while loop with task.wait(0.1) looks choppy. Pro Roblox scripters use RunService.Heartbeat, which fires every single simulation frame and passes deltaTime (the fraction of a second since the last frame).',
-      'Multiplying speed by deltaTime (dt * 2) guarantees your spinner rotates at the exact same real-world speed on both a 60Hz laptop and a 240Hz monitor.'
+      '`game:GetService("ServiceName")` is the safe, official way to fetch any Roblox Service (like `RunService`, `Players`, or `TweenService`).',
+      'Instead of choppy `while` loops with `task.wait()`, `RunService.Heartbeat:Connect(function(dt) ... end)` runs every single frame and hands you `dt` (`deltaTime`: the tiny fraction of a second since the previous frame, e.g. `0.016`).',
+      'Multiplying rotation speed by `dt` (`dt * 2.5`) guarantees your blade turns at the exact same speed whether someone plays at 30 FPS or 240 FPS!',
+      'Shorthand `*=` means "multiply and assign back": `spinner.CFrame *= ...` is identical to `spinner.CFrame = spinner.CFrame * ...`.'
     ],
+    beginnerTip: 'Because `CFrame.Angles(x, y, z)` takes radians, `dt * 2.5` rotates 2.5 radians (~143 degrees) per second around the vertical Y axis.',
+    codeExample: 'local RunService = game:GetService("RunService")\nlocal fan = workspace:WaitForChild("Fan")\n\nRunService.Heartbeat:Connect(function(dt)\n\t-- Multiply current CFrame by a tiny Y rotation scaled by deltaTime\n\tfan.CFrame *= CFrame.Angles(0, dt * 3, 0)\nend)',
     objectives: [
-      'Create or reference Spinner in workspace.',
-      'Connect to RunService.Heartbeat and rotate Spinner using CFrame.Angles(0, dt * 2.5, 0).',
-      'Watch it spin smoothly in the 3D Viewport.'
+      'Review how `RunService.Heartbeat:Connect(function(dt)` passes frame deltaTime `dt`.',
+      'Press Play and verify `Spinner` rotates smoothly in the 3D Viewport.'
     ],
     hints: [
       'local RunService = game:GetService("RunService")',
@@ -784,13 +806,15 @@ end)
     estimatedMinutes: 7,
     summary: 'Stop duplicating scripts inside every coin or trap—tag them with CollectionService and manage all of them from one script.',
     explanation: [
-      'A classic beginner mistake is pasting 20 copies of the same Script inside 20 different Coins. If you need to change one number, you have to edit 20 scripts!',
-      'CollectionService lets you attach a string tag (like "Coin") to Parts. One single script calls CollectionService:GetTagged("Coin") and animates all of them at once.'
+      'Instead of copying 20 scripts inside 20 coins, `CollectionService:AddTag(coin, "Coin")` stamps a text label onto each Part so ONE central script can control all of them.',
+      '`CollectionService:GetTagged("Coin")` returns a list (array) of every tagged Part. Putting `#` in front of a list (`#tagged`) counts how many items are inside it!',
+      '`for _, coin in ipairs(list) do ... end` visits every item in that list one by one. Using `_` as the first variable name is a Luau convention meaning "I know there is an index number `1, 2, 3...`, I just don’t need to use it."'
     ],
+    beginnerTip: 'Notice line 19 uses `coin.CFrame *= CFrame.Angles(0, dt * 3, 0)`—inside the `Heartbeat` loop, all 6 tagged coins animate from one single loop!',
+    codeExample: 'local CollectionService = game:GetService("CollectionService")\n\n-- Stamp the tag "Hazard" onto a part\nCollectionService:AddTag(part, "Hazard")\n\n-- Get all tagged parts and count them with "#"\nlocal hazards = CollectionService:GetTagged("Hazard")\nprint("Total hazards:", #hazards)\n\nfor _, trap in ipairs(hazards) do\n\ttrap.Color = Color3.fromRGB(239, 68, 68)\nend',
     objectives: [
-      'Spawn 6 Parts in a circle and tag each one with CollectionService:AddTag(part, "Coin").',
-      'Loop over CollectionService:GetTagged("Coin") in Heartbeat to spin every coin.',
-      'Print the total count of tagged coins.'
+      'Spawn 6 Parts in a circle and tag each one with `CollectionService:AddTag(coin, "Coin")`.',
+      'Count them with `#tagged` and spin all tagged coins inside one `Heartbeat` loop.'
     ],
     hints: [
       'local CollectionService = game:GetService("CollectionService")',

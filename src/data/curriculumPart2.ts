@@ -30,13 +30,16 @@ export const CURRICULUM_PART_2: LessonDefinition[] = [
     estimatedMinutes: 6,
     summary: 'Use Luau tables as both ordered lists (arrays) and key-value maps (dictionaries).',
     explanation: [
-      'A table in Luau { ... } is the universal data structure. It can act as an Array (numbered 1, 2, 3—remember Luau starts counting at 1, not 0!) or a Dictionary (named keys like { Sword = 100, Shield = 75 }).',
-      'Use ipairs() to loop over arrays in order, or pairs() (or Luau’s clean "for k, v in tbl do") to loop over dictionaries.'
+      'A Luau table `{ ... }` is a versatile container. As an Array (`{ "Sword", "Shield" }`), items are numbered automatically starting at index `1` (NOT `0`!). As a Dictionary (`{ Sword = 100, Shield = 75 }`), each value has a named key you look up with `shopItems.Sword` or `shopItems["Sword"]`.',
+      'Use `ipairs(list)` when looping through numbered arrays in order, and `pairs(dict)` when looping through named dictionary entries (`key, value`).',
+      'Shorthand `+=` adds onto an existing variable: `total += price` means `total = total + price`.'
     ],
+    beginnerTip: 'Inside a dictionary `{ Sword = 100, Shield = 75 }`, put a comma `,` after each entry—even the last one is allowed in Luau and prevents syntax errors when adding new lines!',
+    codeExample: 'local bag = {\n\tApple = 10,\n\tPotion = 25,\n}\n\nlocal sum = 0\nfor itemName, cost in pairs(bag) do\n\tsum += cost -- same as: sum = sum + cost\n\tprint(itemName, "->", cost)\nend\nprint("Total:", sum)',
     objectives: [
-      'Define a shopItems dictionary mapping at least 3 item names to prices.',
-      'Loop through shopItems and print each item and price.',
-      'Calculate and print the total price of all items.'
+      'Inspect how the `shopItems` dictionary maps item names (`Sword`, `Shield`, `Potion`) to prices.',
+      'Loop with `pairs(shopItems)` and add each price with `total += price`.',
+      'Press Play (or customize items/prices!) and verify all items + `Catalog total` print in Output.'
     ],
     hints: [
       'local shopItems = { Sword = 100, Shield = 75, Potion = 25 }',
@@ -88,13 +91,15 @@ print("Catalog total:", total)
     estimatedMinutes: 7,
     summary: 'Put reusable functions inside a ModuleScript in ReplicatedStorage so both Server and Client can require() it.',
     explanation: [
-      'A ModuleScript does not run automatically—instead, it returns a table of functions or settings when another script calls require(moduleScript).',
-      'Because ReplicatedStorage is visible to both Server and Client, placing shared math, item catalogs, and config inside ReplicatedStorage is the backbone of clean Roblox architecture.'
+      'Unlike a normal Script, a `ModuleScript` does NOT run on its own—it acts as a shared library that returns one table (`return GameConfig`) when another script loads it with `require(moduleScript)`.',
+      'Put shared configs, item stats, and math helpers inside `ReplicatedStorage` because BOTH Server Scripts and Client LocalScripts can see and `require()` anything inside `ReplicatedStorage`.',
+      'Notice the `return` keyword at the bottom of `GameConfig`: whatever value you `return` there becomes what `require(...)` gives back to `MainServer`!'
     ],
+    beginnerTip: 'A `ModuleScript` MUST return exactly one value (usually a table `{ ... }`) at the bottom—forgetting `return GameConfig` will cause `require()` to error.',
+    codeExample: '-- Inside ReplicatedStorage/MathConfig (ModuleScript)\nlocal MathConfig = { BonusMultiplier = 2 }\nreturn MathConfig\n\n-- Inside ServerScriptService/GameLoop (Script)\nlocal cfg = require(game:GetService("ReplicatedStorage"):WaitForChild("MathConfig"))\nprint("Multiplier is:", cfg.BonusMultiplier)',
     objectives: [
-      'Edit ReplicatedStorage/GameConfig to export a table with Gravity and StartingCoins.',
-      'Require GameConfig from ServerScriptService/MainServer and print StartingCoins.',
-      'Apply GameConfig.Gravity to workspace.Gravity.'
+      'Switch between `ReplicatedStorage/GameConfig` and `ServerScriptService/MainServer` tabs in the editor to see how `return` + `require()` link them.',
+      'Press Play so `MainServer` applies `Config.Gravity` (80) to `workspace.Gravity` and prints `StartingCoins = 250`.'
     ],
     hints: [
       'In GameConfig: local Config = { Gravity = 80, StartingCoins = 250 }; return Config',
@@ -161,13 +166,15 @@ print("Loaded Config! StartingCoins =", Config.StartingCoins)
     estimatedMinutes: 6,
     summary: 'Wrap risky operations in pcall() (Protected Call) so one unexpected error never crashes your entire server script.',
     explanation: [
-      'Normally, if a line throws an error, the whole script halts immediately. When calling DataStores, HTTP APIs, or parsing unpredictable player input, you MUST wrap calls in pcall(function() ... end).',
-      'pcall returns two values: a boolean (success) and either the return value or the error message.'
+      'Normally, if one line fails (like a DataStore outage or dividing by zero), your entire script stops immediately. `pcall(function() ... end)` ("Protected Call") runs the inner function inside a safety net so errors are caught cleanly instead of crashing.',
+      '`pcall` returns TWO values stored with commas: `local success, result = pcall(...)`. If it worked, `success` is `true` and `result` is what your function returned. If it failed, `success` is `false` and `result` is the error text!',
+      '`assert(condition, message)` intentionally triggers an error if `condition` is false (`b ~= 0` checks "b is not equal to 0"), and `warn(...)` logs an amber warning in Output without stopping your script.'
     ],
+    beginnerTip: '`if not success then` flips a boolean: when `success` is `false`, `not success` becomes `true`, entering the error-handling branch.',
+    codeExample: 'local ok, dataOrErr = pcall(function()\n\tassert(10 > 20, "Not enough points!") -- fails safely inside pcall\n\treturn 100\nend)\n\nif not ok then\n\twarn("Caught safely:", dataOrErr)\nend\nprint("Script still keeps running!")',
     objectives: [
-      'Wrap the risky divide(10, 0) call in pcall().',
-      'Check if not success then warn("Handled safely:", result) end.',
-      'Ensure the final print("Server stayed alive!") still executes.'
+      'Trace how `divide(10, 0)` fails `assert(b ~= 0, ...)` inside `pcall()`.',
+      'Press Play and verify the amber warning (`Handled safely`) AND `"Server stayed alive!"` both log cleanly.'
     ],
     hints: [
       'local success, result = pcall(function() return divide(10, 0) end)',
@@ -227,12 +234,15 @@ print("Server stayed alive!")
     estimatedMinutes: 6,
     summary: 'Understand why Roblox runs two separate worlds: the trusted Server and each player’s Client.',
     explanation: [
-      'Every multiplayer Roblox game is split in two: the Server (running Scripts in ServerScriptService) owns the truth—coins, health, physics, and DataStores. Each player’s device is a Client (running LocalScripts in StarterPlayerScripts or StarterGui) that handles UI, camera, and keyboard input.',
-      'Why? Hackers can edit anything on their own Client, but they CANNOT edit ServerScriptService!'
+      'Every multiplayer Roblox game runs in two separate places: ONE trusted **Server** (`Script` files inside `ServerScriptService`) that controls real scores, physics, and saves—and each player’s own **Client** (`LocalScript` files inside `StarterPlayerScripts` or `StarterGui`) that draws their UI and reads their keyboard.',
+      'Because hackers can tamper with code on their own Client device, NEVER trust the Client to decide coins or health. Keep game rules on the Server!',
+      'Notice `Players.LocalPlayer`: that property ONLY works inside a `LocalScript` on a Client (the Server serves all players, so there is no single "local" player on the Server).'
     ],
+    beginnerTip: 'In the script tabs above the code editor, `Server` badges are green (`Script`) and `Client` badges are blue (`LocalScript`).',
+    codeExample: '-- In ServerScriptService (Script): runs once for the whole game\nprint("[Server] Checking round timer...")\n\n-- In StarterPlayerScripts (LocalScript): runs per player\nlocal player = game:GetService("Players").LocalPlayer\nprint("[Client] Welcome,", player.Name)',
     objectives: [
-      'Inspect both ServerScriptService/ServerScript and StarterPlayerScripts/ClientScript.',
-      'Press Play and observe both [Server] and [Client] tags in the Output console.'
+      'Open both `ServerBoot` (`Script`) and `ClientBoot` (`LocalScript`) tabs to compare them.',
+      'Press Play and observe both `[Server]` and `[Client]` messages in the Output console.'
     ],
     hints: [
       'Run Play and check that both Server and Client print their identities.'
@@ -281,13 +291,15 @@ print("Hello from Client for player:", Players.LocalPlayer.Name)
     estimatedMinutes: 7,
     summary: 'Create the official Roblox leaderstats scoreboard folder inside each player as soon as they join.',
     explanation: [
-      'When a player joins a server, Players.PlayerAdded fires with that Player object.',
-      'If you create a Folder named exact lowercase "leaderstats" inside player and put IntValue objects inside it (like "Coins" and "Stage"), Roblox automatically displays them on the top-right player leaderboard!'
+      '`Players.PlayerAdded:Connect(function(player) ... end)` fires on the Server every time a new player joins, automatically giving you their `player` instance.',
+      'If you create a `Folder` named exact lowercase `"leaderstats"` (`leaderstats.Name = "leaderstats"`) and set `leaderstats.Parent = player`, Roblox automatically displays any `IntValue` or `StringValue` objects inside it on the top-right scoreboard!',
+      'Important: `coins` is an `IntValue` container object—to read or change the actual number inside it, always use `.Value` (`coins.Value = 100`), NOT `coins = 100`.'
     ],
+    beginnerTip: 'Spelling matters! `"Leaderstats"` with a capital L will NOT show on the Roblox leaderboard—it must be lowercase `"leaderstats"`.',
+    codeExample: 'game:GetService("Players").PlayerAdded:Connect(function(player)\n\tlocal stats = Instance.new("Folder")\n\tstats.Name = "leaderstats" -- exact lowercase required by Roblox!\n\tstats.Parent = player\n\n\tlocal stage = Instance.new("IntValue")\n\tstage.Name = "Stage"\n\tstage.Value = 1            -- always set .Value for IntValue\n\tstage.Parent = stats\nend)',
     objectives: [
-      'Listen to Players.PlayerAdded.',
-      'Create a Folder named "leaderstats" parented to player.',
-      'Create an IntValue named "Coins" with Value = 100 inside leaderstats.'
+      'Inspect how `Leaderstats` creates a `"leaderstats"` `Folder` and `"Coins"` `IntValue` with `Value = 100` on `PlayerAdded`.',
+      'Press Play and inspect `Players -> BuilderOne -> leaderstats -> Coins` in the Explorer & Properties panels.'
     ],
     hints: [
       'local ls = Instance.new("Folder"); ls.Name = "leaderstats"; ls.Parent = player',
@@ -340,13 +352,15 @@ end)
     estimatedMinutes: 7,
     summary: 'Send messages across the network between LocalScripts and Server Scripts using RemoteEvents.',
     explanation: [
-      'Because Clients and Server run on different computers, a LocalScript cannot directly change server data. Instead, both sides talk through a RemoteEvent placed in ReplicatedStorage.',
-      'Client calls remote:FireServer(data). Server listens with remote.OnServerEvent:Connect(function(player, data) ... end). Notice Roblox automatically injects "player" as the first argument on the server so nobody can fake who sent it!'
+      'Because Client and Server live on different computers, a `LocalScript` cannot edit server variables directly. Instead, both sides send messages across a `RemoteEvent` stored in `ReplicatedStorage`.',
+      'Client -> Server: the `LocalScript` calls `remote:FireServer("SpawnBeacon")`. On the Server, `remote.OnServerEvent:Connect(function(player, action) ... end)` receives that message.',
+      'Notice a crucial security detail: the Client only passed 1 argument (`"SpawnBeacon"`), yet the Server receives TWO parameters (`player, action`). Roblox automatically fills in `player` as the 1st argument on the server so no hacker can pretend to be someone else!'
     ],
+    beginnerTip: 'After pressing Play, click the **Network** tab at the bottom Output console to watch the live Client -> Server packet!',
+    codeExample: '-- Client (LocalScript): sends 1 argument\nlocal buyEvent = game:GetService("ReplicatedStorage"):WaitForChild("BuyItem")\nbuyEvent:FireServer("SpeedCoil")\n\n-- Server (Script): Roblox automatically prepends "player" first!\nbuyEvent.OnServerEvent:Connect(function(player, itemName)\n\tprint(player.Name, "asked to buy", itemName)\nend)',
     objectives: [
-      'Send "SpawnBeacon" from ClientScript using remote:FireServer("SpawnBeacon").',
-      'Handle it in ServerScript OnServerEvent to spawn a neon green Part in workspace.',
-      'Check the Network tab in the bottom console to watch the live packet.'
+      'Compare `RemoteClient` (`:FireServer("SpawnBeacon")`) and `RemoteServer` (`.OnServerEvent`).',
+      'Press Play to spawn `NetworkBeacon` in 3D and inspect the delivered packet in the **Network** tab.'
     ],
     hints: [
       'In ClientScript: remote:FireServer("SpawnBeacon")',
@@ -424,13 +438,15 @@ remote:FireServer("SpawnBeacon")
     estimatedMinutes: 8,
     summary: 'Defend RemoteEvents against exploiters who spam requests or send negative/fake numbers.',
     explanation: [
-      'Rule #1 of Roblox security: NEVER trust the Client. An exploiter can call FireServer(999999999) or fire a RemoteEvent 500 times per second.',
-      'Your server handler must validate every argument (typeof(amount) == "number", clamp ranges, check ownership) AND enforce a per-player rate-limit cooldown using os.clock().'
+      'Golden Rule of multiplayer security: NEVER trust anything coming from `:FireServer()`. Exploiters can call `remote:FireServer(999999)` or spam it 100 times per second!',
+      'Type & range validation: `typeof(amount) ~= "number"` checks the incoming value’s real type (`~=` means "not equal"), and `amount < 1 or amount > 50` rejects negative or giant exploit numbers before any coins are added.',
+      'Rate limiting: store each player’s last timestamp inside a table (`lastClaim[player.Name] = os.clock()`). `os.clock()` gives precise seconds, so `now - lastClaim[player.Name] < 0.5` blocks burst spam!'
     ],
+    beginnerTip: 'Notice how `ExploitTestClient` sends 3 requests: `999999` (blocked by range check), `25` (accepted!), and another `25` right away (blocked by rate limit).',
+    codeExample: 'local lastCall = {}\nchatRemote.OnServerEvent:Connect(function(player, text)\n\tif os.clock() - (lastCall[player.Name] or 0) < 1 then\n\t\treturn -- Too fast!\n\tend\n\tif typeof(text) ~= "string" or #text > 100 then\n\t\treturn -- Invalid payload!\n\tend\n\tlastCall[player.Name] = os.clock()\nend)',
     objectives: [
-      'Validate that requested amount is a number between 1 and 50 (reject 999999).',
-      'Enforce a 0.5-second per-player rate limit so rapid burst calls are blocked with warn().',
-      'Confirm only valid requests award coins.'
+      'Trace how `SecureServer` validates `os.clock()` cooldown and `typeof(amount)` range `1..50`.',
+      'Press Play and verify in Output that `999999` and the burst spam are warned/blocked while `25` succeeds.'
     ],
     hints: [
       'if typeof(amount) ~= "number" or amount <= 0 or amount > 50 then warn("Blocked invalid amount!"); return end',
@@ -520,13 +536,15 @@ remote:FireServer(25)     -- Too fast spam attempt!
     estimatedMinutes: 7,
     summary: 'Build interactive on-screen HUDs and clickable buttons over the 3D Viewport strictly through Luau.',
     explanation: [
-      'ScreenGui containers inside PlayerGui render 2D HUD elements right on top of the 3D world. Sizes and positions use UDim2.new(xScale, xOffset, yScale, yOffset) or UDim2.fromOffset(w, h).',
-      'Clicking a TextButton fires button.MouseButton1Click—try clicking the button directly on the 3D Viewport!'
+      '2D menus and HUDs live inside a `ScreenGui` placed in `player:WaitForChild("PlayerGui")`. UI elements like `TextLabel` (display text) and `TextButton` (clickable button) sit inside that `ScreenGui`.',
+      '`UDim2` sizes and positions UI using BOTH screen percentage (**Scale**, `0` to `1`) and exact pixels (**Offset**): `UDim2.new(xScale, xOffset, yScale, yOffset)`. For quick fixed-pixel sizes, use `UDim2.fromOffset(width, height)`.',
+      'Style buttons with `BackgroundColor3`, `TextColor3`, and `Text`, then react to clicks with `btn.MouseButton1Click:Connect(function() ... end)`.'
     ],
+    beginnerTip: 'After pressing Play, look at the top-left corner of the 3D Viewport—your live `Spawn Boost Block` UI button is clickable right there!',
+    codeExample: 'local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))\nlocal banner = Instance.new("TextLabel")\nbanner.Position = UDim2.new(0.05, 0, 0.05, 0) -- 5% from top-left\nbanner.Size = UDim2.fromOffset(180, 40)        -- 180px wide x 40px tall\nbanner.BackgroundColor3 = Color3.fromRGB(15, 23, 42)\nbanner.TextColor3 = Color3.fromRGB(255, 255, 255)\nbanner.Text = "Level 1"\nbanner.Parent = gui',
     objectives: [
-      'Create a ScreenGui inside player:WaitForChild("PlayerGui").',
-      'Add a TextButton with Text = "Spawn Boost Block" and connect MouseButton1Click.',
-      'Click the rendered button on the 3D Viewport during Play to spawn a Neon block!'
+      'Review how `ScreenGui`, `TextButton`, `UDim2`, and `MouseButton1Click` work together in `HudBuilder`.',
+      'Press Play and click the blue **Spawn Boost Block** button on the 3D Viewport to spawn a Neon block!'
     ],
     hints: [
       'local button = Instance.new("TextButton", gui)',
@@ -596,13 +614,15 @@ end)
     estimatedMinutes: 6,
     summary: 'Animate doors, elevators, and colors with silky easing curves using TweenService.',
     explanation: [
-      'TweenService interpolates properties smoothly over time without manual loops. You describe the timing with TweenInfo.new(duration, EasingStyle, EasingDirection) and pass a table of goal properties.',
-      'You can even listen to tween.Completed to chain animations together!'
+      '`TweenService` smoothly animates properties (like `Position`, `Color`, `Size`, or `Transparency`) from their current values to target values over time—no `while` loop required!',
+      '`TweenInfo.new(duration, Enum.EasingStyle, Enum.EasingDirection)` controls the timing curve: `duration` is seconds, `EasingStyle` picks the motion curve (`Quad`, `Linear`, `Bounce`, `Sine`), and `EasingDirection` picks whether it eases at the `In`, `Out`, or `InOut` end.',
+      '`TweenService:Create(part, info, goalTable)` returns a Tween object. Call `tween:Play()` to start it, and connect to `tween.Completed` to run code once the animation finishes.'
     ],
+    beginnerTip: 'Notice how `goal` is a dictionary `{ Position = ..., Color = ... }` where the keys match the exact property names on `ElevatorPart`!',
+    codeExample: 'local TweenService = game:GetService("TweenService")\nlocal info = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)\n\nlocal fadeTween = TweenService:Create(door, info, {\n\tTransparency = 0.8,\n\tColor = Color3.fromRGB(14, 165, 233),\n})\nfadeTween:Play()',
     objectives: [
-      'Create a TweenInfo with duration 1.2s and Enum.EasingStyle.Bounce.',
-      'Tween ElevatorPart.Position to Vector3.new(0, 8, 0) and Color to bright cyan.',
-      'Play the tween and print "Elevator arrived!" when tween.Completed fires.'
+      'Inspect `TweenInfo.new(1.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out)` and the `goal` table.',
+      'Press Play to watch `ElevatorPart` bounce upward to `Y = 8` and trigger `tween.Completed`.'
     ],
     hints: [
       'local tween = TweenService:Create(elevator, info, { Position = Vector3.new(0, 8, 0), Color = Color3.fromRGB(6, 182, 212) })',
@@ -679,13 +699,15 @@ tween:Play()
     estimatedMinutes: 6,
     summary: 'Bind player keyboard keys (like E or F) to trigger scripted abilities with synthesized sound effects.',
     explanation: [
-      'UserInputService listens to keyboard, mouse, and touch inputs on the Client. Check input.KeyCode == Enum.KeyCode.F inside InputBegan:Connect().',
-      'Combine input with a Sound instance (:Play()) so every ability feels responsive.'
+      '`UserInputService.InputBegan:Connect(function(input) ... end)` fires on the Client whenever the player presses any key or clicks.',
+      'Check which key was pressed using `input.KeyCode == Enum.KeyCode.F` (remember `==` compares!).',
+      'To make abilities feel responsive, create a `Sound` instance (`sfx:Play()`) and schedule temporary effects to auto-delete using `Debris:AddItem(wave, 2)`—unlike `task.wait(2)` + `:Destroy()`, `Debris` deletes `wave` after 2 seconds in the background without pausing your input handler!'
     ],
+    beginnerTip: 'After pressing Play, click once inside the 3D Viewport so it has keyboard focus, then press `F` on your keyboard.',
+    codeExample: 'local UserInputService = game:GetService("UserInputService")\nlocal Debris = game:GetService("Debris")\n\nUserInputService.InputBegan:Connect(function(input)\n\tif input.KeyCode == Enum.KeyCode.Q then\n\t\tlocal spark = Instance.new("Part", workspace)\n\t\tDebris:AddItem(spark, 1.5) -- Auto-destroy after 1.5s without pausing!\n\tend\nend)',
     objectives: [
-      'Listen to UserInputService.InputBegan for Enum.KeyCode.F.',
-      'Play the Sound instance and spawn a glowing Shockwave part when F is pressed.',
-      'Focus the 3D Viewport during Play and press F on your keyboard!'
+      'Read how `InputBegan`, `Enum.KeyCode.F`, `Sound:Play()`, and `Debris:AddItem()` work together.',
+      'Press Play, click the 3D Viewport to focus it, and press `F` on your keyboard to fire a Shockwave!'
     ],
     hints: [
       'Click inside the 3D Viewport during Play and press the F key.'
@@ -746,13 +768,15 @@ end)
     estimatedMinutes: 5,
     summary: 'Control the sky, sun angle, brightness, and atmospheric fog dynamically via the Lighting service.',
     explanation: [
-      'Even without modeling a single cloud, changing Lighting.ClockTime, Lighting.Brightness, and Lighting.FogEnd completely transforms a game’s mood—from bright noon to moody midnight.',
-      'Watch the 3D Viewport sky and shadows shift live as your script updates Lighting!'
+      'The `Lighting` service controls your world’s sun position, sky color, and fog via simple properties—no skybox painting needed.',
+      '`Lighting.ClockTime` uses a 24-hour clock (`6` = sunrise, `12` = bright noon, `18` = sunset, `22` = midnight).',
+      '`Lighting.FogEnd` sets how many studs away atmospheric fog becomes thick (smaller numbers create moodier close-up mist).'
     ],
+    beginnerTip: 'Inside the `for hour = 14, 22, 2 do` loop, the third number `2` steps forward 2 hours at a time (`14, 16, 18, 20, 22`).',
+    codeExample: 'local Lighting = game:GetService("Lighting")\nLighting.ClockTime = 18.5 -- Golden sunset!\nLighting.FogEnd = 110     -- Soft evening horizon mist',
     objectives: [
-      'Get the Lighting service via game:GetService("Lighting").',
-      'Animate or set Lighting.ClockTime to 22 (nighttime) and Lighting.FogEnd to 90.',
-      'Observe the 3D Viewport shift into night atmosphere.'
+      'Trace how `DayNightCycle` steps `Lighting.ClockTime` from `14` to `22` and tightens `Lighting.FogEnd`.',
+      'Press Play and watch the 3D Viewport sky shift smoothly from afternoon into night!'
     ],
     hints: [
       'local Lighting = game:GetService("Lighting")',
@@ -803,13 +827,15 @@ end
     estimatedMinutes: 7,
     summary: 'Persist player coins and inventory across sessions using DataStoreService with pcall protection.',
     explanation: [
-      'Variables vanish when a server shuts down. DataStoreService saves data to Roblox’s cloud database so players keep their coins and items next time they join.',
-      'Because network calls can fail, ALWAYS wrap GetAsync and SetAsync inside pcall(). Check the DataStores tab in the bottom console after pressing Play!'
+      'Normal `local` variables vanish as soon as a server restarts. `DataStoreService:GetDataStore("PlayerEconomy")` opens a named cloud database table so player progress persists across sessions.',
+      'Use `store:SetAsync(key, value)` to write a table under a player key (`"BuilderOne"`), and `store:GetAsync(key)` to load it back later. (`Async` means it talks over the network and waits for the reply.)',
+      'Because cloud requests can occasionally fail, ALWAYS wrap `SetAsync` and `GetAsync` inside `pcall()`. When loading, check `if okLoad and data then` because a brand-new player returns `nil`!'
     ],
+    beginnerTip: 'After pressing Play, open the **DataStores** tab in the bottom console to inspect the exact saved JSON/Luau table!',
+    codeExample: 'local DataStoreService = game:GetService("DataStoreService")\nlocal scoreStore = DataStoreService:GetDataStore("HighScores")\n\nlocal ok = pcall(function()\n\tscoreStore:SetAsync("BuilderOne", { Best = 900 })\nend)\nif ok then\n\tlocal loadedOk, saved = pcall(function() return scoreStore:GetAsync("BuilderOne") end)\n\tif loadedOk and saved then print("Best:", saved.Best) end\nend',
     objectives: [
-      'Open DataStoreService:GetDataStore("PlayerEconomy").',
-      'Save { Coins = 500, Level = 4 } for key "BuilderOne" using pcall + SetAsync.',
-      'Read it back with GetAsync and print the loaded Coins.'
+      'Trace how `SaveManager` wraps both `SetAsync` and `GetAsync` in `pcall()`.',
+      'Press Play and check Output + the **DataStores** console tab to inspect `BuilderOne`’s saved record.'
     ],
     hints: [
       'store:SetAsync("BuilderOne", { Coins = 500, Level = 4 })',
@@ -866,13 +892,15 @@ end
     estimatedMinutes: 8,
     summary: 'Prevent item-duplication bugs and race conditions using UpdateAsync with a retry loop.',
     explanation: [
-      'Using SetAsync blindly can overwrite newer data if two servers save at once. Senior Roblox engineers use UpdateAsync(key, transformFunction), which reads the latest value atomically before writing.',
-      'Wrapping it in a bounded retry helper with exponential backoff ensures transient cloud hiccups never lose player progress.'
+      '`SetAsync` overwrites whatever was stored before—if two servers save at once, one update can be lost! `store:UpdateAsync(key, transformFn)` fixes that by reading the latest cloud data, passing it as `oldData` into your `transformFn`, and saving whatever you `return`.',
+      'Look at `local data = oldData or { Coins = 0, Level = 1 }`: using `or` as a fallback means "if `oldData` is `nil` (brand-new player), use this starter table instead."',
+      'Wrapping `UpdateAsync` in a `for attempt = 1, 3 do` retry loop with `task.wait(0.1 * attempt)` waits longer on each retry (`0.1s`, `0.2s`, `0.3s`) if the cloud briefly hiccups.'
     ],
+    beginnerTip: 'Inside the `UpdateAsync` callback, ALWAYS `return data` at the end—if you forget `return`, nothing gets written back!',
+    codeExample: 'store:UpdateAsync("BuilderOne", function(old)\n\tlocal current = old or { Wins = 0 } -- fallback if first time playing\n\tcurrent.Wins += 1\n\treturn current                      -- must return the updated table!\nend)',
     objectives: [
-      'Write a retry helper that attempts UpdateAsync up to 3 times inside pcall().',
-      'Atomically add +150 Coins to BuilderOne’s existing saved balance (starting at 100 -> 250).',
-      'Verify final stored Coins == 250 in the DataStores inspector.'
+      'Trace how `safeUpdate` combines a 3-attempt `pcall()` retry loop with `UpdateAsync`.',
+      'Press Play to atomically update `BuilderOne`’s Coins from `100` to `250` and inspect the **DataStores** tab.'
     ],
     hints: [
       'store:UpdateAsync("BuilderOne", function(old) old = old or { Coins = 0 }; old.Coins += 150; return old end)'
@@ -940,13 +968,15 @@ end
     estimatedMinutes: 8,
     summary: 'Cast invisible 3D math beams to detect obstacles, measure distances, and render laser beams.',
     explanation: [
-      'A Raycast shoots an invisible mathematical line from an origin in a direction vector. If it hits a Part, workspace:Raycast() returns a RaycastResult with .Instance, .Position, .Normal, and .Distance!',
-      'Use RaycastParams with FilterType = Enum.RaycastFilterType.Exclude so a laser doesn’t hit the turret that fired it.'
+      '`workspace:Raycast(origin, direction, params)` fires an invisible 3D laser beam starting at `origin` and extending along `direction` (note: `direction` is BOTH direction AND length—`Vector3.new(0, 0, -30)` casts 30 studs along `-Z`, NOT to world point `(0,0,-30)`!).',
+      '`RaycastParams.new()` configures what the ray ignores: `Enum.RaycastFilterType.Exclude` + `FilterDescendantsInstances = { emitter }` stops the ray from immediately hitting the Emitter itself.',
+      'When the ray hits a Part, `result` contains `.Instance` (hit Part), `.Position` (exact hit point), and `.Distance` (studs traveled). `origin:Lerp(result.Position, 0.5)` finds the exact midpoint halfway between them, and `CFrame.lookAt(mid, result.Position)` aims the visible `LaserBeam` directly at the wall!'
     ],
+    beginnerTip: 'Always check `if result then` before reading `result.Position`—if the ray hits nothing, `workspace:Raycast()` returns `nil`.',
+    codeExample: 'local params = RaycastParams.new()\nparams.FilterType = Enum.RaycastFilterType.Exclude\nparams.FilterDescendantsInstances = { sensor }\n\n-- Cast 20 studs straight DOWN (0, -20, 0)\nlocal hit = workspace:Raycast(sensor.Position, Vector3.new(0, -20, 0), params)\nif hit then\n\tprint("Ground:", hit.Instance.Name, "Distance:", hit.Distance)\nend',
     objectives: [
-      'Configure RaycastParams to exclude the Emitter part.',
-      'Cast a ray from Emitter.Position toward TargetWall.',
-      'Print the hit Instance name and render a visible Neon LaserBeam spanning the exact hit distance.'
+      'Inspect how `RaycastParams` excludes `Emitter` and how `origin:Lerp(result.Position, 0.5)` + `CFrame.lookAt` span the laser.',
+      'Press Play to fire the raycast against `TargetWall` and spawn `LaserBeam` in 3D.'
     ],
     hints: [
       'local result = workspace:Raycast(origin, Vector3.new(0, 0, -30), params)',
@@ -1042,13 +1072,15 @@ end
     estimatedMinutes: 8,
     summary: 'Build a patrolling 3D Guard strictly by script and steer it between waypoints using CFrame.lookAt and a state machine.',
     explanation: [
-      'You don’t need pre-rigged character models to create AI enemies or drones! A clean state machine ("Patrol" vs "Alert") moves a script-built Guard smoothly toward waypoints using CFrame.lookAt() and checks distance to the player.',
-      'This is how autonomous drones, turrets, and boss mechanics are engineered in pure Luau.'
+      'A State Machine uses a string variable (`state = "Patrol"` vs `"Alert"`) to switch behavior cleanly each frame inside `RunService.Heartbeat`.',
+      'Vector math powers steering: subtracting two positions (`dir = targetPos - guard.Position`) gives the vector pointing from the drone to its target. `dir.Magnitude` is the exact distance in studs, and `dir.Unit` is that same direction shrunk to a clean length of `1` stud!',
+      'Using `dir.Unit * math.min(dir.Magnitude, dt * 6)` moves 6 studs/second toward `targetPos` without overshooting, while `CFrame.lookAt(newPos, targetPos)` smoothly rotates the drone to face where it is flying.'
     ],
+    beginnerTip: 'Press Play and walk near `PatrolDrone` with WASD—when your distance (`Magnitude`) drops under 10 studs, watch it switch to `"Alert"` and turn red!',
+    codeExample: 'local offset = targetPos - npc.Position\nlocal distance = offset.Magnitude -- studs away\nlocal direction = offset.Unit     -- length-1 arrow toward target\n\nif distance > 0.5 then\n\tnpc.CFrame = CFrame.lookAt(npc.Position + direction * (dt * 5), targetPos)\nend',
     objectives: [
-      'Patrol the Guard between Waypoint A (-8, 2, -4) and Waypoint B (8, 2, -4).',
-      'Face the movement direction using CFrame.lookAt().',
-      'Switch state to "Alert" and turn the Guard red if the player is within 10 studs.'
+      'Read how `dir.Magnitude`, `dir.Unit`, and `CFrame.lookAt` drive the Patrol/Alert state machine.',
+      'Press Play to watch `PatrolDrone` steer between waypoints (and walk near it with WASD to trigger red Alert mode!).'
     ],
     hints: [
       'Walk toward the Guard with WASD during Play to test the Alert state!'
@@ -1134,14 +1166,16 @@ end)
     estimatedMinutes: 8,
     summary: 'Unlock Luau’s deepest language feature: teaching plain tables to behave like custom mathematical types and smart objects.',
     explanation: [
-      'A metatable gives a regular table custom superpowers via special keys called metamethods: __index (fallback lookup), __add (what happens when you write a + b), __tostring (custom print formatting), and __call (calling a table like a function!).',
-      'In this lesson, you’ll engineer a custom 2D StatVector type that supports + addition and clean string formatting.'
+      'Normally, you cannot write `tableA + tableB` in Luau—it would error! `setmetatable(myTable, metaTable)` attaches a rulebook table (`metaTable`) that tells Luau what special operations should do.',
+      'Keys starting with two underscores are called **metamethods**: `__index` (where to look if a key is missing), `__add` (runs automatically when you write `a + b`), and `__tostring` (runs when `tostring(obj)` or `print(obj)` converts your table to text).',
+      '`string.format("ATK:%d DEF:%d", ...)` formats numbers neatly into a template string (`%d` inserts a whole integer).'
     ],
-    proNote: 'Metatables are how Roblox’s own Vector3 and Luau OOP classes work under the hood.',
+    proNote: 'Metatables are how Roblox’s own `Vector3` (`posA + posB`) and Luau OOP classes work under the hood.',
+    beginnerTip: 'Notice `Stat.new(atk, def)` returns `setmetatable({ Attack = atk, Defense = def }, Stat)`—so both `sword` and `shield` share `Stat`’s `__add` and `__tostring` rules!',
+    codeExample: 'local Vec2 = {}\nVec2.__index = Vec2\nfunction Vec2.__add(a, b)\n\treturn setmetatable({ X = a.X + b.X, Y = a.Y + b.Y }, Vec2)\nend\nfunction Vec2.__tostring(self)\n\treturn `({self.X}, {self.Y})`\nend',
     objectives: [
-      'Create a metatable with __add and __tostring metamethods.',
-      'Add two custom tables (a + b) to produce a combined StatVector.',
-      'Print the result using tostring() / print() and verify __tostring fires.'
+      'Trace how `sword + shield` triggers `Stat.__add` and `tostring(loadout)` triggers `Stat.__tostring`.',
+      'Press Play and confirm `ATK:45 DEF:45` prints in Output.'
     ],
     hints: [
       'StatMeta.__add = function(a, b) return Stat.new(a.Attack + b.Attack, a.Defense + b.Defense) end',
@@ -1199,13 +1233,15 @@ print("Combined Loadout ->", tostring(loadout))
     estimatedMinutes: 9,
     summary: 'Architect clean OOP class hierarchies with BaseEntity -> LaserTurret inheritance using chained __index metatables.',
     explanation: [
-      'Real Roblox studios organize complex enemies, weapons, and vehicles into Object-Oriented classes inside ModuleScripts.',
-      'By setting setmetatable(SubClass, BaseClass), any method not found on SubClass automatically delegates up the prototype chain to BaseClass—true inheritance in pure Luau!'
+      'Object-Oriented Programming (OOP) bundles data + functions into blueprints called classes: `BaseEntity.__index = BaseEntity` tells every entity created with `setmetatable({}, BaseEntity)` to look up methods on `BaseEntity`.',
+      'Dot vs Colon in definitions: `function BaseEntity.new(name)` is called with a dot, while `function BaseEntity:TakeDamage(amount)` uses a colon `:`, which automatically creates a hidden first variable `self` pointing to whichever specific object (`alpha`) called it!',
+      'Inheritance: `local Turret = setmetatable({}, BaseEntity)` links `Turret`’s fallback chain to `BaseEntity`. When you call `alpha:TakeDamage(40)`, Luau checks `alpha` -> `Turret` -> `BaseEntity` and finds `:TakeDamage()` automatically!'
     ],
+    beginnerTip: 'Inspect both tabs: `EntityOOP` defines `BaseEntity` and `Turret`, while `TestOOP` creates `AlphaTurret` and calls both `:Fire()` and inherited `:TakeDamage(40)`.',
+    codeExample: 'local Animal = {}\nAnimal.__index = Animal\nfunction Animal:Speak() print("...") end\n\nlocal Wolf = setmetatable({}, Animal) -- Wolf inherits Animal!\nWolf.__index = Wolf\nfunction Wolf.new() return setmetatable({}, Wolf) end',
     objectives: [
-      'Define BaseEntity in ReplicatedStorage/EntityOOP with :TakeDamage(amount).',
-      'Inherit Turret from BaseEntity via setmetatable(Turret, BaseEntity) and add :Fire().',
-      'Instantiate a Turret, spawn its 3D Part, call :Fire() and :TakeDamage(40), and print remaining HP.'
+      'Review how `Turret` inherits `TakeDamage` from `BaseEntity` via chained `setmetatable` + `__index`.',
+      'Press Play to spawn `AlphaTurret`, fire a pulse, and reduce HP from 100 to 60.'
     ],
     hints: [
       'setmetatable(Turret, BaseEntity) makes Turret inherit BaseEntity:TakeDamage!'
@@ -1294,14 +1330,16 @@ alpha:TakeDamage(40)
     estimatedMinutes: 8,
     summary: 'Write production-grade --!strict Luau with custom type aliases, union types, and generic functions <T>.',
     explanation: [
-      'At the top of professional Roblox scripts, you will see "--!strict". This activates Luau’s static type checker to catch bugs BEFORE you even press Play!',
-      'You can define custom object shapes (type Weapon = { Name: string, Damage: number }), optional/union types (number | nil), and generic functions (function wrap<T>(value: T)) that work safely across any type.'
+      'Putting `--!strict` on line 1 activates Luau’s static type checker, catching mismatched numbers/strings/missing fields right in the editor BEFORE you press Play!',
+      'A colon after a parameter or variable specifies its type (`attacksPerSec: number`), and `type Weapon = { Name: string, Damage: number, ... }` defines a reusable blueprint for a table’s exact shape.',
+      'Generics `<T>` act like a type wildcard: `function cloneEntry<T>(value: T): T` accepts ANY type `T` (a `Weapon`, a `string`, etc.) and guarantees the returned value keeps that exact same type instead of losing type info!'
     ],
-    proNote: 'Try intentionally changing "local dmg: number = 45" to a string "oops" to watch the --!strict diagnostic catch it instantly!',
+    proNote: 'Try intentionally changing `Damage = 60` to `Damage = "oops"` to watch the `--!strict` diagnostic flag the bug immediately (then restore `60` to pass).',
+    beginnerTip: 'In `function computeDps(w: Weapon, attacksPerSec: number): number`, the `: number` after the closing `)` declares what type the function returns.',
+    codeExample: '--!strict\ntype Item = { Name: string, Price: number }\n\nlocal function firstItem<T>(list: { T }): T\n\treturn list[1]\nend\n\nlocal sword: Item = { Name = "Blade", Price = 50 }\nlocal picked: Item = firstItem({ sword })',
     objectives: [
-      'Keep --!strict at line 1 with zero static type errors.',
-      'Define a custom Weapon type and a generic function cloneEntry<T>(entry: T): T.',
-      'Print the strictly-typed weapon damage calculation.'
+      'Keep `--!strict` on line 1 with 0 static type diagnostics.',
+      'Trace how `Weapon`, `cloneEntry<T>`, and `computeDps` enforce strict types, then press Play to print `Strict DPS = 150`.'
     ],
     hints: [
       'Ensure all type annotations match their assigned values so --!strict reports 0 diagnostics.'
@@ -1367,13 +1405,15 @@ print(copy.Name, "Strict DPS =", dps)
     estimatedMinutes: 10,
     summary: 'Master manual coroutine.create/resume/yield execution and build a custom Signal + Janitor cleanup framework from scratch.',
     explanation: [
-      'Memory leaks happen in large Roblox games when rounds end but old RBXScriptConnections or spawned Parts stay alive forever. Pro frameworks solve this with a Janitor (Maid) class and custom Signals.',
-      'And under the hood of task.spawn() are Luau Coroutines: threads you can pause mid-function with coroutine.yield() and wake back up with coroutine.resume().'
+      'A Coroutine is a function you can pause halfway through and resume later! `coroutine.create(fn)` builds the thread, `coroutine.resume(co, arg)` runs it until `coroutine.yield(...)` pauses it (`"suspended"` status) and sends back a value, and the next `resume` passes a new value into `bonus` until it finishes (`"dead"`).',
+      'In large games, leftover `:Connect()` listeners or spawned `Part`s waste memory after a round ends. A `Janitor` (Maid) class collects temporary objects in `self._tasks` via `:Add(obj)`.',
+      'When the round ends, calling `roundJanitor:Cleanup()` checks `typeof(item)`: it calls `:Disconnect()` on connections and `:Destroy()` on 3D `Instance`s, then empties `_tasks` with `table.clear()`.'
     ],
+    beginnerTip: 'Notice how `local tempWall = roundJanitor:Add(Instance.new("Part"))` registers AND returns the Part on the same line—super clean!',
+    codeExample: 'local co = coroutine.create(function(start)\n\tlocal extra = coroutine.yield(start * 2) -- pauses and returns 10\n\treturn extra + 1\nend)\nlocal ok1, v1 = coroutine.resume(co, 5)  -- ok1=true, v1=10 (suspended)\nlocal ok2, v2 = coroutine.resume(co, 20) -- ok2=true, v2=21 (dead)',
     objectives: [
-      'Run a multi-step coroutine using coroutine.create, coroutine.resume, and coroutine.yield.',
-      'Implement Janitor:Add(item) and Janitor:Cleanup() to disconnect connections and destroy temporary Parts.',
-      'Verify both the coroutine state progression and clean Janitor teardown in Output.'
+      'Inspect `JanitorSignal` and `MasterLifecycle` tabs to see coroutine states (`suspended` -> `dead`) and automatic resource cleanup.',
+      'Press Play and verify `RoundBarrier` spawns briefly and is cleanly destroyed by `Janitor:Cleanup()`.'
     ],
     hints: [
       'Check how Janitor:Cleanup() calls :Disconnect() on connections and :Destroy() on Instances.'
@@ -1475,15 +1515,16 @@ print("Janitor cleaned resources:", count)
     estimatedMinutes: 12,
     summary: 'Combine everything you learned into a complete, playable 3D Roblox game built 100% through Luau scripts—zero modeling tools used.',
     explanation: [
-      'Congratulations on reaching the final Capstone! Here, a --!strict OOP ModuleScript, procedural CFrame obstacle platforms, CollectionService spinning coins, RemoteEvent server-authoritative collection, ScreenGui HUD, TweenService win gate, and DataStoreService saving all work together as one cohesive game.',
-      'Press Play, walk across the procedural platforms with WASD + Space, collect coins, and watch your HUD and DataStore update live!'
+      'Welcome to the Master Capstone! Open all 3 script tabs to see how real Roblox studios split a game: (1) `ArenaBuilder` (`ModuleScript` in `ReplicatedStorage`) generates the 3D obby & tagged coins, (2) `CapstoneServer` runs `leaderstats`, `DataStoreService`, coin touches, and `Heartbeat` spinning, and (3) `CapstoneClient` renders the live `ScreenGui` HUD.',
+      'Notice the ternary pattern on line 22 of `CapstoneServer`: `(ok and typeof(saved) == "number") and saved or 0` safely uses `saved` if it’s a number, or falls back to `0` if this is a first-time player.',
+      'When you touch a coin in 3D, the Server updates `leaderstats.Coins`, saves to `DataStoreService`, and calls `collectEvent:FireClient(p, c.Value)` so your Client HUD tweens smoothly via `OnClientEvent`!'
     ],
-    proNote: 'After completing this Capstone, open the Freeplay Sandbox anytime to build and cloud-save your own full model-free Roblox games!',
+    proNote: 'After completing this Capstone, switch to **Sandbox** anytime in the top bar to build and cloud-save your own full model-free Roblox experiences!',
+    beginnerTip: 'Try tweaking `PlatformCount` or `Spacing` in `CapstoneServer`, press Play, and walk forward with WASD + Space across your procedural obby to collect coins!',
+    codeExample: '-- End-to-end Capstone flow:\n-- 1. ArenaBuilder:Build() -> spawns 6 platforms + "CapstoneCoin" tags\n-- 2. Coin Touched (Server) -> updates DataStore + fires CollectCoin:FireClient\n-- 3. CapstoneClient (LocalScript) -> OnClientEvent updates HUD & plays Tween',
     objectives: [
-      'Generate at least 5 procedural obby platforms and 4 tagged "CapstoneCoin" collectibles.',
-      'Wire ServerScriptService/CapstoneServer with Players leaderstats + DataStore saving + RemoteEvent validation.',
-      'Wire StarterPlayerScripts/CapstoneClient with a live ScreenGui Coin HUD.',
-      'Press Play and verify the full game boots cleanly with 0 strict errors!'
+      'Explore `ArenaBuilder`, `CapstoneServer`, and `CapstoneClient` to trace the full `--!strict` architecture.',
+      'Press Play with 0 strict errors to generate `ProceduralObby` + `CapstoneHUD`—and walk forward with WASD + Space to collect coins!'
     ],
     hints: [
       'The full starter architecture is wired—try customizing platform spacing, coin colors, or Tween speeds, then press Play and walk through your game!'

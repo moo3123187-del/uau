@@ -48,7 +48,7 @@ interface LessonGuidePanelProps {
 }
 
 const CODE_TOKEN_RE =
-  /(`[^`]+`|"[A-Za-z0-9_!.*#%:/+\s-]{1,24}"|[A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)*\([^)\n]*\)|:[A-Za-z_][A-Za-z0-9_]*\([^)\n]*\)|Enum\.[A-Za-z0-9_.]+|[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*|\b(?:local|function|elseif|else|then|end|for|while|repeat|until|pairs|ipairs|require|print|warn|pcall|typeof|workspace|game|Anchored|CanCollide|Parent|PrimaryPart|WeldConstraint|ModuleScript|LocalScript|Script|ReplicatedStorage|ServerScriptService|DataStoreService|TweenService|RunService|UserInputService|CollectionService|ClickDetector|ProximityPrompt|RemoteEvent|RemoteFunction|Humanoid)\b|==|~=|>=|<=)/g;
+  /(\*\*[^*\n]+\*\*|`[^`]+`|"[A-Za-z0-9_!.*#%:/+\s-]{1,28}"|[A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)*\([^)\n]*\)|:[A-Za-z_][A-Za-z0-9_]*\([^)\n]*\)|Enum\.[A-Za-z0-9_.]+|[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*|\b(?:local|function|elseif|else|then|end|for|while|repeat|until|pairs|ipairs|require|print|warn|assert|pcall|xpcall|typeof|tostring|tonumber|workspace|game|Vector3|CFrame|Color3|UDim2|UDim|TweenInfo|RaycastParams|Enum|Debris|Anchored|CanCollide|Parent|PrimaryPart|WeldConstraint|ModuleScript|LocalScript|Script|ReplicatedStorage|ServerScriptService|DataStoreService|TweenService|RunService|UserInputService|CollectionService|ClickDetector|ProximityPrompt|RemoteEvent|RemoteFunction|Humanoid|Lighting|PlayerGui|Players|ScreenGui|TextLabel|TextButton|IntValue|Folder|ClockTime|FogEnd|Brightness|Magnitude|Unit|Color|Material|Size|Position|Transparency|ActionText|ObjectText|Triggered|MouseButton1Click|Touched|Heartbeat|PlayerAdded|OnServerEvent|OnClientEvent|FireServer|FireClient|Clock|setmetatable|coroutine)\b|==|~=|>=|<=|\+=|\*=|\.\.)/g;
 
 function renderTeachingText(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
@@ -61,8 +61,20 @@ function renderTeachingText(text: string): React.ReactNode[] {
     if (match.index > lastIdx) {
       parts.push(<span key={key++}>{text.slice(lastIdx, match.index)}</span>);
     }
-    const token = match[0];
-    const isStringLiteral = token.startsWith('"') || token.startsWith('`');
+    const rawToken = match[0];
+    if (rawToken.startsWith('**') && rawToken.endsWith('**')) {
+      parts.push(
+        <strong key={key++} className="font-semibold text-white">
+          {rawToken.slice(2, -2)}
+        </strong>
+      );
+      lastIdx = match.index + rawToken.length;
+      continue;
+    }
+    const isBacktick = rawToken.startsWith('`') && rawToken.endsWith('`');
+    const isTemplateOrPlaceholder = isBacktick && (rawToken.includes('{') || rawToken === '`...`');
+    const displayToken = isBacktick && !isTemplateOrPlaceholder ? rawToken.slice(1, -1) : rawToken;
+    const isStringLiteral = rawToken.startsWith('"') || isTemplateOrPlaceholder;
     parts.push(
       <code
         key={key++}
@@ -70,16 +82,95 @@ function renderTeachingText(text: string): React.ReactNode[] {
           isStringLiteral ? 'text-emerald-300' : 'text-sky-300'
         }`}
       >
-        {token}
+        {displayToken}
       </code>
     );
-    lastIdx = match.index + token.length;
+    lastIdx = match.index + rawToken.length;
   }
 
   if (lastIdx < text.length) {
     parts.push(<span key={key++}>{text.slice(lastIdx)}</span>);
   }
   return parts;
+}
+
+const EXAMPLE_KEYWORDS = new Set([
+  'local', 'function', 'end', 'if', 'then', 'elseif', 'else', 'for', 'in', 'do',
+  'while', 'repeat', 'until', 'break', 'continue', 'return', 'and', 'or', 'not',
+  'true', 'false', 'nil', 'type', 'export',
+]);
+
+const EXAMPLE_GLOBALS = new Set([
+  'game', 'workspace', 'script', 'Instance', 'Vector3', 'CFrame', 'Color3',
+  'UDim', 'UDim2', 'TweenInfo', 'RaycastParams', 'Enum', 'task', 'coroutine',
+  'math', 'string', 'table', 'os', 'print', 'warn', 'error', 'assert', 'pcall',
+  'require', 'setmetatable', 'ipairs', 'pairs', 'typeof', 'tostring', 'tonumber',
+]);
+
+function highlightExampleLine(line: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+  const len = line.length;
+  let key = 0;
+
+  while (i < len) {
+    if (line[i] === '-' && line[i + 1] === '-') {
+      const rest = line.slice(i);
+      const isDirective = rest.trimStart().startsWith('--!');
+      nodes.push(
+        <span key={key++} className={isDirective ? 'text-amber-300 font-semibold' : 'text-slate-400'}>
+          {rest}
+        </span>
+      );
+      break;
+    }
+    if (line[i] === '"' || line[i] === "'" || line[i] === '`') {
+      const q = line[i];
+      let j = i + 1;
+      while (j < len && line[j] !== q) {
+        if (line[j] === '\\') j++;
+        j++;
+      }
+      nodes.push(
+        <span key={key++} className="text-emerald-300">
+          {line.slice(i, Math.min(len, j + 1))}
+        </span>
+      );
+      i = j + 1;
+      continue;
+    }
+    if (/[0-9]/.test(line[i])) {
+      let j = i;
+      while (j < len && /[0-9._]/.test(line[j])) j++;
+      nodes.push(
+        <span key={key++} className="text-amber-300">
+          {line.slice(i, j)}
+        </span>
+      );
+      i = j;
+      continue;
+    }
+    if (/[a-zA-Z_]/.test(line[i])) {
+      let j = i;
+      while (j < len && /[a-zA-Z0-9_]/.test(line[j])) j++;
+      const word = line.slice(i, j);
+      if (EXAMPLE_KEYWORDS.has(word)) {
+        nodes.push(<span key={key++} className="text-sky-400 font-medium">{word}</span>);
+      } else if (EXAMPLE_GLOBALS.has(word)) {
+        nodes.push(<span key={key++} className="text-indigo-300">{word}</span>);
+      } else {
+        nodes.push(<span key={key++} className="text-slate-200">{word}</span>);
+      }
+      i = j;
+      continue;
+    }
+    let j = i + 1;
+    while (j < len && !/[-"'`0-9a-zA-Z_]/.test(line[j])) j++;
+    nodes.push(<span key={key++} className="text-slate-300">{line.slice(i, j)}</span>);
+    i = j;
+  }
+
+  return nodes;
 }
 
 function cleanConceptLine(raw: string): string {
@@ -331,8 +422,13 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
                 )}
               </button>
             </div>
-            <pre className="p-3.5 font-mono text-sm text-sky-300 overflow-x-auto whitespace-pre-wrap leading-[1.55]">
-              {lesson.codeExample}
+            <pre className="p-3.5 font-mono text-sm overflow-x-auto whitespace-pre-wrap leading-[1.55]">
+              {lesson.codeExample.split('\n').map((line, i, arr) => (
+                <React.Fragment key={i}>
+                  {highlightExampleLine(line)}
+                  {i < arr.length - 1 ? '\n' : null}
+                </React.Fragment>
+              ))}
             </pre>
           </section>
         )}

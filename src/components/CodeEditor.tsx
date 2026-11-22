@@ -84,6 +84,8 @@ const ROBLOX_GLOBALS = new Set([
   'wait',
   'spawn',
   'delay',
+  'tick',
+  'time',
 ]);
 
 const CALLABLE_GLOBALS: Record<string, { insertText: string; detail: string }> = {
@@ -99,6 +101,13 @@ const CALLABLE_GLOBALS: Record<string, { insertText: string; detail: string }> =
   tonumber: { insertText: 'tonumber($0)', detail: 'Convert to number' },
   ipairs: { insertText: 'ipairs($0)', detail: 'Iterate array' },
   pairs: { insertText: 'pairs($0)', detail: 'Iterate table' },
+  wait: { insertText: 'wait($0)', detail: 'Yield coroutine' },
+  spawn: { insertText: 'spawn(function()\n\t$0\nend)', detail: 'Run concurrently' },
+  delay: { insertText: 'delay(1, function()\n\t$0\nend)', detail: 'Schedule later' },
+  setmetatable: { insertText: 'setmetatable($0, {})', detail: 'Attach metatable' },
+  getmetatable: { insertText: 'getmetatable($0)', detail: 'Get metatable' },
+  tick: { insertText: 'tick()', detail: 'Unix timestamp' },
+  time: { insertText: 'time()', detail: 'Elapsed game time' },
 };
 
 const CONTEXT_SUGGESTIONS: Record<string, AutocompleteItem[]> = {
@@ -270,13 +279,161 @@ const GENERAL_ITEMS: AutocompleteItem[] = [
       kind: 'datatype',
     };
   }),
-  ...Array.from(LUAU_KEYWORDS).map((k): AutocompleteItem => ({
-    label: k,
-    matchText: k,
-    insertText: k,
-    kind: 'keyword',
-  })),
+  ...Array.from(LUAU_KEYWORDS)
+    .filter((k) => k !== 'function')
+    .map((k): AutocompleteItem => ({
+      label: k,
+      matchText: k,
+      insertText: k,
+      kind: 'keyword',
+    })),
 ];
+
+function maskCommentsAndStringsPreserveOffsets(source: string): string {
+  const chars = source.split('');
+  let i = 0;
+  const len = source.length;
+
+  const blankRange = (from: number, to: number) => {
+    for (let k = from; k < to; k++) {
+      if (chars[k] !== '\n') chars[k] = ' ';
+    }
+  };
+
+  while (i < len) {
+    if (source.slice(i, i + 4) === '--[[') {
+      const close = source.indexOf(']]', i + 4);
+      const end = close === -1 ? len : close + 2;
+      blankRange(i, end);
+      i = end;
+      continue;
+    }
+    if (source[i] === '-' && source[i + 1] === '-') {
+      let end = i + 2;
+      while (end < len && source[end] !== '\n') end++;
+      blankRange(i, end);
+      i = end;
+      continue;
+    }
+    if (source[i] === '[' && source[i + 1] === '[') {
+      const close = source.indexOf(']]', i + 2);
+      const end = close === -1 ? len : close + 2;
+      blankRange(i, end);
+      i = end;
+      continue;
+    }
+    if (source[i] === '"' || source[i] === "'" || source[i] === '`') {
+      const quote = source[i];
+      let end = i + 1;
+      while (end < len && source[end] !== quote && source[end] !== '\n') {
+        if (source[end] === '\\') end++;
+        end++;
+      }
+      if (end < len && source[end] === quote) end++;
+      blankRange(i, end);
+      i = end;
+      continue;
+    }
+    i++;
+  }
+
+  return chars.join('');
+}
+
+interface ExtractedScriptSymbols {
+  identifiers: AutocompleteItem[];
+  memberMap: Record<string, AutocompleteItem[]>;
+}
+
+function extractScriptSymbols(source: string): ExtractedScriptSymbols {
+  const masked = maskCommentsAndStringsPreserveOffsets(source);
+  const identifiers: AutocompleteItem[] = [];
+  const seenIds = new Set<string>();
+  const memberMap: Record<string, AutocompleteItem[]> = {};
+  const seenMembers = new Set<string>();
+
+  const formatParamsLabel = (params: string) => {
+    const clean = params.replace(/\s+/g, ' ').trim();
+    if (!clean) return '';
+    return clean.length > 22 ? '...' : clean;
+  };
+
+  const makeCallableInsert = (name: string, params: string) =>
+    params.trim().length > 0 ? `${name}($0)` : `${name}()`;
+
+  // 1. Named functions: `local function foo(a, b)`, `function foo(a)`, `function Mod.foo(a)`, `function Mod:foo(a)`
+  const fnDeclRe =
+    /(?:^|[^\w.:])(local\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)?)\s*\(([^)\n]*)\)/gm;
+  let match: RegExpExecArray | null;
+  while ((match = fnDeclRe.exec(masked)) !== null) {
+    const isLocal = Boolean(match[1]);
+    const fullName = match[2];
+    const params = match[3] ?? '';
+    const dotIdx = Math.max(fullName.lastIndexOf('.'), fullName.lastIndexOf(':'));
+
+    if (dotIdx !== -1) {
+      const chain = fullName.slice(0, dotIdx + 1);
+      const memberName = fullName.slice(dotIdx + 1);
+      const memberKey = `${chain}${memberName}`;
+      if (!seenMembers.has(memberKey)) {
+        seenMembers.add(memberKey);
+        if (!memberMap[chain]) memberMap[chain] = [];
+        memberMap[chain].push({
+          label: `${memberName}(${formatParamsLabel(params)})`,
+          matchText: memberName,
+          insertText: makeCallableInsert(memberName, params),
+          kind: 'method',
+          detail: chain.endsWith(':') ? 'method' : 'function',
+        });
+      }
+    } else if (!seenIds.has(fullName)) {
+      seenIds.add(fullName);
+      identifiers.push({
+        label: `${fullName}(${formatParamsLabel(params)})`,
+        matchText: fullName,
+        insertText: makeCallableInsert(fullName, params),
+        kind: 'method',
+        detail: isLocal ? 'local fn' : 'function',
+      });
+    }
+  }
+
+  // 2. Local function expressions: `local myFn = function(a, b)`
+  const fnExprRe =
+    /(?:^|[^\w.])local\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*function\s*\(([^)\n]*)\)/gm;
+  while ((match = fnExprRe.exec(masked)) !== null) {
+    const name = match[1];
+    const params = match[2] ?? '';
+    if (!seenIds.has(name)) {
+      seenIds.add(name);
+      identifiers.push({
+        label: `${name}(${formatParamsLabel(params)})`,
+        matchText: name,
+        insertText: makeCallableInsert(name, params),
+        kind: 'method',
+        detail: 'local fn',
+      });
+    }
+  }
+
+  // 3. Plain local variables: `local player = ...`
+  const localVarRe = /(?:^|[^\w.])local\s+(?!function\b|type\b)([A-Za-z_][A-Za-z0-9_]*)/gm;
+  while ((match = localVarRe.exec(masked)) !== null) {
+    const name = match[1];
+    if (!seenIds.has(name) && !LUAU_KEYWORDS.has(name) && !ROBLOX_GLOBALS.has(name)) {
+      seenIds.add(name);
+      identifiers.push({
+        label: name,
+        matchText: name,
+        insertText: name,
+        kind: 'property',
+        detail: 'local',
+      });
+    }
+  }
+
+  return { identifiers, memberMap };
+}
 
 const AUTO_PAIRS: Record<string, string> = {
   '(': ')',
@@ -503,10 +660,57 @@ function highlightLuauLine(
   return { nodes, endsInBlockComment: false };
 }
 
+function getFunctionSnippets(beforeWordOnLine: string): AutocompleteItem[] {
+  const isCallbackContext = /(?:=|return|\(|,|\{|:)\s*$/.test(beforeWordOnLine);
+  if (isCallbackContext) {
+    return [
+      {
+        label: 'function() ... end',
+        matchText: 'function',
+        insertText: 'function()\n\t$0\nend',
+        kind: 'snippet',
+        detail: 'Callback block',
+      },
+      {
+        label: 'function(args) ... end',
+        matchText: 'function',
+        insertText: 'function($0)\n\tend',
+        kind: 'snippet',
+        detail: 'Callback + args',
+      },
+      {
+        label: 'function',
+        matchText: 'function',
+        insertText: 'function',
+        kind: 'keyword',
+        detail: 'Keyword',
+      },
+    ];
+  }
+
+  return [
+    {
+      label: 'function name() ... end',
+      matchText: 'function',
+      insertText: 'function $0()\n\tend',
+      kind: 'snippet',
+      detail: 'Function block',
+    },
+    {
+      label: 'function',
+      matchText: 'function',
+      insertText: 'function',
+      kind: 'keyword',
+      detail: 'Keyword',
+    },
+  ];
+}
+
 function getAutocompleteContext(
   code: string,
   cursor: number,
-  forceOpen: boolean
+  forceOpen: boolean,
+  scriptSymbols: ExtractedScriptSymbols
 ): { replaceStart: number; items: AutocompleteItem[]; exactTypedWord: boolean } | null {
   const before = code.slice(0, cursor);
   const currentLine = before.split('\n').pop() ?? '';
@@ -514,7 +718,7 @@ function getAutocompleteContext(
   const trimmed = currentLine.trimStart();
   if (trimmed.startsWith('--') && !forceOpen) return null;
 
-  // Member chains e.g. `Enum.Material.Pl` or `game:GetS` or `Vector3.n`
+  // Member chains e.g. `Enum.Material.Pl` or `game:GetS` or `Vector3.n` or user `Enemy:Attack`
   const memberMatch = before.match(
     /([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*[.:])([A-Za-z0-9_]*)$/
   );
@@ -523,8 +727,19 @@ function getAutocompleteContext(
     const prefix = memberMatch[2].toLowerCase();
     const replaceStart = cursor - memberMatch[2].length;
 
-    if (CONTEXT_SUGGESTIONS[chain]) {
-      const matches = CONTEXT_SUGGESTIONS[chain].filter(
+    const customMembers = scriptSymbols.memberMap[chain] ?? [];
+    const builtInMembers = CONTEXT_SUGGESTIONS[chain] ?? [];
+    if (customMembers.length > 0 || builtInMembers.length > 0) {
+      const combined = [...customMembers];
+      const seen = new Set(combined.map((it) => (it.matchText ?? it.label).toLowerCase()));
+      for (const it of builtInMembers) {
+        const key = (it.matchText ?? it.label).toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          combined.push(it);
+        }
+      }
+      const matches = combined.filter(
         (it) => !prefix || (it.matchText ?? it.label).toLowerCase().startsWith(prefix)
       );
       return matches.length > 0
@@ -548,11 +763,22 @@ function getAutocompleteContext(
     const raw = wordMatch[1];
     const prefix = raw.toLowerCase();
     const replaceStart = cursor - raw.length;
-    const matches = GENERAL_ITEMS.filter((it) => {
+    const beforeWordOnLine = currentLine.slice(0, currentLine.length - raw.length);
+
+    const dynamicCandidates: AutocompleteItem[] = [
+      ...getFunctionSnippets(beforeWordOnLine),
+      ...scriptSymbols.identifiers.filter(
+        // Avoid suggesting an incomplete variable/function name while currently typing its declaration
+        (it) => (it.matchText ?? it.label).toLowerCase() !== prefix || !/\b(?:local|function)\s+$/.test(beforeWordOnLine)
+      ),
+      ...GENERAL_ITEMS,
+    ];
+
+    const matches = dynamicCandidates.filter((it) => {
       const target = (it.matchText ?? it.label).toLowerCase();
       if (!target.startsWith(prefix)) return false;
-      // Hide exact-match keywords/non-callables while typing normally so Enter never hijacks `end`, `if`, `local`, etc.
-      if (!forceOpen && target === prefix && it.kind !== 'method') return false;
+      // Hide exact-match keywords/variables while typing normally so Enter never hijacks `end`, `if`, `local`, etc.
+      if (!forceOpen && target === prefix && it.kind !== 'method' && it.kind !== 'snippet') return false;
       return true;
     });
     if (matches.length === 0) return null;
@@ -565,7 +791,12 @@ function getAutocompleteContext(
   }
 
   if (forceOpen) {
-    return { replaceStart: cursor, items: GENERAL_ITEMS.slice(0, 8), exactTypedWord: false };
+    const items = [
+      ...getFunctionSnippets(currentLine),
+      ...scriptSymbols.identifiers,
+      ...GENERAL_ITEMS,
+    ].slice(0, 8);
+    return { replaceStart: cursor, items, exactTypedWord: false };
   }
   return null;
 }
@@ -597,6 +828,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     items: AutocompleteItem[];
     selectedIdx: number;
     exactTypedWord: boolean;
+    hasNavigated: boolean;
     top: number;
     left: number;
   } | null>(null);
@@ -683,7 +915,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       setCompletion(null);
       return;
     }
-    const ctx = getAutocompleteContext(src, cursor, forceOpen);
+    const symbols = extractScriptSymbols(src);
+    const ctx = getAutocompleteContext(src, cursor, forceOpen, symbols);
     if (!ctx) {
       setCompletion(null);
       return;
@@ -695,6 +928,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       items: ctx.items,
       selectedIdx: 0,
       exactTypedWord: ctx.exactTypedWord,
+      hasNavigated: false,
       top: coords.top,
       left: coords.left,
     });
@@ -727,7 +961,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const lineStart = code.lastIndexOf('\n', completion.replaceStart - 1) + 1;
     const baseIndent = code.slice(lineStart, completion.replaceStart).match(/^[\t ]*/)?.[0] ?? '';
 
-    const expanded = item.insertText.replace(/\n/g, `\n${baseIndent}`);
+    let rawInsert = item.insertText;
+    // Avoid doubling `(...)` if cursor already sits right before `(`
+    if (item.kind === 'method' && code[completion.cursor] === '(' && rawInsert.includes('(')) {
+      rawInsert = rawInsert.slice(0, rawInsert.indexOf('('));
+    }
+
+    const expanded = rawInsert.replace(/\n/g, `\n${baseIndent}`);
     const markerIdx = expanded.indexOf('$0');
     const cleanText = markerIdx >= 0 ? expanded.replace('$0', '') : expanded;
     const cursorOffset = markerIdx >= 0 ? markerIdx : cleanText.length;
@@ -954,7 +1194,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setCompletion((prev) =>
-          prev ? { ...prev, selectedIdx: (prev.selectedIdx + 1) % prev.items.length } : null
+          prev
+            ? {
+                ...prev,
+                selectedIdx: (prev.selectedIdx + 1) % prev.items.length,
+                hasNavigated: true,
+              }
+            : null
         );
         return;
       }
@@ -965,6 +1211,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             ? {
                 ...prev,
                 selectedIdx: (prev.selectedIdx - 1 + prev.items.length) % prev.items.length,
+                hasNavigated: true,
               }
             : null
         );
@@ -975,8 +1222,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         acceptCompletion(completion.items[completion.selectedIdx] ?? completion.items[0]);
         return;
       }
-      // Enter accepts autocomplete ONLY if the user hasn't already finished typing an exact identifier
-      if (e.key === 'Enter' && !completion.exactTypedWord) {
+      // Enter accepts autocomplete when typing a partial match or after arrow-key selection
+      if (e.key === 'Enter' && (!completion.exactTypedWord || completion.hasNavigated)) {
         e.preventDefault();
         acceptCompletion(completion.items[completion.selectedIdx] ?? completion.items[0]);
         return;
@@ -1067,19 +1314,61 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       const prevChar = code[start - 1];
       const nextChar = code[end];
 
-      // 1. Splitting `{|}` or `(|)` (non-function) across 3 lines
-      if ((prevChar === '{' && nextChar === '}') || (prevChar === '(' && nextChar === ')' && !/function\s*\(\s*$/.test(trimmedBefore))) {
+      // 1. Complete function header when cursor is inside parameter parens `function foo(a, b|)` or right before `()` (`function foo|()`)
+      const inFunctionParams =
+        /(?:^|[\s(=,{:])function(?:\s+[A-Za-z_][A-Za-z0-9_.:]*)?\s*\([^)]*$/.test(trimmedBefore);
+      const afterFunctionParamParen = lineAfter.match(/^(\s*\))(\s*[),;]*\s*)$/);
+      if (inFunctionParams && afterFunctionParamParen) {
+        const consumedParen = afterFunctionParamParen[1];
+        const afterCloseEnd = end + consumedParen.length;
+        const unclosed = countUnclosedLuauBlocks(code);
+        const bodyBlock =
+          unclosed > 0
+            ? `${consumedParen}\n${baseIndent}\t\n${baseIndent}end`
+            : `${consumedParen}\n${baseIndent}\t`;
+        const next = code.slice(0, start) + bodyBlock + code.slice(afterCloseEnd);
+        applyEdit(next, start + consumedParen.length + 1 + baseIndent.length + 1);
+        return;
+      }
+
+      const atFunctionNameBeforeEmptyParens =
+        /^(?:local\s+)?function\s+[A-Za-z_][A-Za-z0-9_.:]*$/.test(trimmedBefore) &&
+        /^\s*\(\)\s*[),;]*\s*$/.test(trimmedAfter);
+      if (atFunctionNameBeforeEmptyParens) {
+        const parensMatch = lineAfter.match(/^(\s*\(\))/);
+        if (parensMatch) {
+          const consumedParens = parensMatch[1];
+          const afterParensEnd = end + consumedParens.length;
+          const unclosed = countUnclosedLuauBlocks(code);
+          const bodyBlock =
+            unclosed > 0
+              ? `${consumedParens}\n${baseIndent}\t\n${baseIndent}end`
+              : `${consumedParens}\n${baseIndent}\t`;
+          const next = code.slice(0, start) + bodyBlock + code.slice(afterParensEnd);
+          applyEdit(next, start + consumedParens.length + 1 + baseIndent.length + 1);
+          return;
+        }
+      }
+
+      // 2. Splitting `{|}` or `(|)` (non-function) across 3 lines
+      const isFunctionHeaderLine = /\bfunction\b/.test(trimmedBefore);
+      if (
+        (prevChar === '{' && nextChar === '}') ||
+        (prevChar === '(' && nextChar === ')' && !isFunctionHeaderLine)
+      ) {
         const insert = `\n${baseIndent}\t\n${baseIndent}`;
         const next = code.slice(0, start) + insert + code.slice(end);
         applyEdit(next, start + 1 + baseIndent.length + 1);
         return;
       }
 
-      // 2. Check if current line opens a Luau block
+      // 3. Check if current line opens a Luau block
       const opensAutoEndBlock =
         /\b(then|do)$/.test(trimmedBefore) ||
-        /^(?:local\s+)?function\b.*\)\s*(?::\s*[\w.<>\[\]?|]+\s*)?$/.test(trimmedBefore) ||
-        /(?:=|return|\(|,)\s*function\s*\([^)]*\)\s*(?::\s*[\w.<>\[\]?|]+\s*)?$/.test(trimmedBefore);
+        /^(?:local\s+)?function\s+[A-Za-z_][A-Za-z0-9_.:]*\s*\([^)]*\)\s*(?::\s*[\w.<>\[\]?|]+\s*)?$/.test(
+          trimmedBefore
+        ) ||
+        /(?:=|return|\(|,|\{)\s*function\s*\([^)]*\)\s*(?::\s*[\w.<>\[\]?|]+\s*)?$/.test(trimmedBefore);
 
       const opensIndentOnly =
         /\b(else|repeat)$/.test(trimmedBefore) || /[{(]\s*$/.test(trimmedBefore);
@@ -1416,7 +1705,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                   <Sparkles className="w-3 h-3" />
                   Luau IntelliSense
                 </span>
-                <span>Tab{completion.exactTypedWord ? '' : ' / Enter'}</span>
+                <span>
+                  Tab{!completion.exactTypedWord || completion.hasNavigated ? ' / Enter' : ''}
+                </span>
               </div>
               <div className="max-h-44 overflow-y-auto py-1">
                 {completion.items.map((item, idx) => {
