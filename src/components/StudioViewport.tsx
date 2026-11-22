@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { ChevronDown, ChevronUp, Compass, Eye, Gamepad2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Compass, Crosshair, Eye, Gamepad2 } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
 import { RuntimeNodeSnapshot } from '../types/studio';
 
 interface StudioViewportProps {
@@ -216,9 +217,9 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
   onKeyInput,
   onCharacterMove,
 }) => {
+  const { settings, updateSetting } = useSettings();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [dockCollapsed, setDockCollapsed] = useState(true);
-  const [showAxes, setShowAxes] = useState(true);
   const [webglError, setWebglError] = useState(false);
   const [nearbyPrompt, setNearbyPrompt] = useState<{ id: string; actionText: string; objectText: string } | null>(null);
 
@@ -226,7 +227,9 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     tree,
     selectedNodeId,
     isPlaying,
-    showAxes,
+    showAxes: settings.showAxes,
+    showBaseplateGrid: settings.showBaseplateGrid,
+    cameraSpeed: settings.cameraSpeed,
     onSelectNode,
     onTriggerClickDetector,
     onTriggerProximityPrompt,
@@ -238,7 +241,9 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     tree,
     selectedNodeId,
     isPlaying,
-    showAxes,
+    showAxes: settings.showAxes,
+    showBaseplateGrid: settings.showBaseplateGrid,
+    cameraSpeed: settings.cameraSpeed,
     onSelectNode,
     onTriggerClickDetector,
     onTriggerProximityPrompt,
@@ -253,6 +258,8 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     controls: OrbitControls;
     partsGroup: THREE.Group;
     axesHelper: THREE.AxesHelper;
+    baseplate: THREE.Mesh;
+    baseTex: THREE.CanvasTexture;
     keyLight: THREE.DirectionalLight;
     hemiLight: THREE.HemisphereLight;
     avatar: ReturnType<typeof buildCompositeAvatar>;
@@ -320,7 +327,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
 
-    const camera = new THREE.PerspectiveCamera(52, width / height, 0.2, 400);
+    const camera = new THREE.PerspectiveCamera(settings.cameraFov, width / height, 0.2, 400);
     camera.position.set(16, 12, 20);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -328,7 +335,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI / 2 - 0.03;
     controls.minDistance = 4;
-    controls.maxDistance = 90;
+    controls.maxDistance = 120;
     controls.target.set(0, 2, 0);
 
     controls.addEventListener('start', () => {
@@ -361,7 +368,8 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     const baseplate = new THREE.Mesh(
       new THREE.PlaneGeometry(160, 160),
       new THREE.MeshStandardMaterial({
-        map: baseTex,
+        map: settings.showBaseplateGrid ? baseTex : null,
+        color: settings.showBaseplateGrid ? 0xffffff : 0x1e293b,
         roughness: 0.72,
         metalness: 0.05,
       })
@@ -387,6 +395,8 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
       controls,
       partsGroup,
       axesHelper,
+      baseplate,
+      baseTex,
       keyLight,
       hemiLight,
       avatar,
@@ -448,6 +458,28 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT') return;
       keysDown.add(e.code);
+
+      // Roblox Studio `F` shortcut: focus camera on selected Part (or origin) in Edit Mode
+      if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !propsRef.current.isPlaying && sceneRefs.current) {
+        const refs = sceneRefs.current;
+        const selectedMesh = propsRef.current.selectedNodeId
+          ? refs.meshMap.get(propsRef.current.selectedNodeId)
+          : null;
+        if (selectedMesh) {
+          const t = selectedMesh.position.clone();
+          const radius = Math.max(4, selectedMesh.scale.length() * 1.4);
+          refs.cameraTargetGoal = {
+            target: t,
+            pos: t.clone().add(new THREE.Vector3(radius, radius * 0.75, radius * 1.1)),
+          };
+        } else {
+          refs.cameraTargetGoal = {
+            pos: new THREE.Vector3(16, 12, 20),
+            target: new THREE.Vector3(0, 2, 0),
+          };
+        }
+      }
+
       const rKey = mapCodeToRobloxKey(e.code);
       if (rKey) {
         propsRef.current.onKeyInput(rKey, true);
@@ -618,6 +650,35 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
           refs.avatarPos.set(0, 0, 12);
           refs.avatarVelY = 0;
           setNearbyPrompt(null);
+
+          // Roblox Studio Edit Mode Camera Fly (WASD + Q/E, Shift for slow precision)
+          let fwd = 0;
+          let strafe = 0;
+          let elev = 0;
+          if (keysDown.has('KeyW')) fwd += 1;
+          if (keysDown.has('KeyS')) fwd -= 1;
+          if (keysDown.has('KeyD')) strafe += 1;
+          if (keysDown.has('KeyA')) strafe -= 1;
+          if (keysDown.has('KeyE')) elev += 1;
+          if (keysDown.has('KeyQ')) elev -= 1;
+
+          if (fwd !== 0 || strafe !== 0 || elev !== 0) {
+            refs.cameraTargetGoal = null;
+            const slowFactor = keysDown.has('ShiftLeft') || keysDown.has('ShiftRight') ? 0.35 : 1;
+            const flySpeed = 20 * propsRef.current.cameraSpeed * slowFactor * dt;
+
+            const forwardVec = new THREE.Vector3();
+            camera.getWorldDirection(forwardVec);
+            const rightVec = new THREE.Vector3().crossVectors(forwardVec, camera.up).normalize();
+
+            const deltaMove = new THREE.Vector3()
+              .addScaledVector(forwardVec, fwd * flySpeed)
+              .addScaledVector(rightVec, strafe * flySpeed);
+            deltaMove.y += elev * flySpeed;
+
+            camera.position.add(deltaMove);
+            controls.target.add(deltaMove);
+          }
         }
 
         // Unanchored simple gravity simulation while playing
@@ -734,6 +795,42 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
       );
     }
   }, [tree, selectedNodeId]);
+
+  // Sync Studio Settings (FOV & Baseplate Grid) live to Three.js camera & baseplate
+  useEffect(() => {
+    const refs = sceneRefs.current;
+    if (!refs) return;
+    if (refs.camera.fov !== settings.cameraFov) {
+      refs.camera.fov = settings.cameraFov;
+      refs.camera.updateProjectionMatrix();
+    }
+    const mat = refs.baseplate.material as THREE.MeshStandardMaterial;
+    const nextMap = settings.showBaseplateGrid ? refs.baseTex : null;
+    if (mat.map !== nextMap) {
+      mat.map = nextMap;
+      mat.color.setHex(settings.showBaseplateGrid ? 0xffffff : 0x1e293b);
+      mat.needsUpdate = true;
+    }
+  }, [settings.cameraFov, settings.showBaseplateGrid]);
+
+  const focusSelected = () => {
+    const refs = sceneRefs.current;
+    if (!refs) return;
+    const selectedMesh = selectedNodeId ? refs.meshMap.get(selectedNodeId) : null;
+    if (selectedMesh) {
+      const t = selectedMesh.position.clone();
+      const radius = Math.max(4, selectedMesh.scale.length() * 1.4);
+      refs.cameraTargetGoal = {
+        target: t,
+        pos: t.clone().add(new THREE.Vector3(radius, radius * 0.75, radius * 1.1)),
+      };
+    } else {
+      refs.cameraTargetGoal = {
+        pos: new THREE.Vector3(16, 12, 20),
+        target: new THREE.Vector3(0, 2, 0),
+      };
+    }
+  };
 
   const setCameraPreset = (preset: 'iso' | 'top' | 'front') => {
     const refs = sceneRefs.current;
@@ -898,13 +995,22 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
               >
                 Front
               </button>
+              <button
+                type="button"
+                onClick={focusSelected}
+                title="Focus camera on selected Part (F)"
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-sky-300 hover:bg-slate-800 rounded whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Crosshair className="w-3 h-3" />
+                Focus (F)
+              </button>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowAxes((v) => !v)}
+              onClick={() => updateSetting('showAxes', !settings.showAxes)}
               className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded whitespace-nowrap shrink-0 cursor-pointer ${
-                showAxes ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-slate-300 hover:bg-slate-800'
+                settings.showAxes ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
@@ -913,7 +1019,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
 
             <div className="hidden sm:flex items-center gap-1.5 pl-1 text-[11px] text-slate-400 whitespace-nowrap shrink-0">
               <Gamepad2 className="w-3.5 h-3.5 text-slate-400" />
-              <span>Drag: Orbit · Click Part: Select</span>
+              <span>WASD+Q/E: Fly · Shift: Slow · F: Focus</span>
             </div>
           </div>
         )}

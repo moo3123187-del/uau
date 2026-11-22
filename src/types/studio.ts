@@ -136,3 +136,27 @@ export interface LessonProgressRecord {
   scripts: Record<string, string>;
   attempts: number;
 }
+
+export interface StudioSettings {
+  editorFontSize: number;
+  tabSize: 2 | 4;
+  wordWrap: boolean;
+  autoClosePairs: boolean;
+  autoIndentBlocks: boolean;
+  autocompleteEnabled: boolean;
+  highlightActiveLine: boolean;
+  cameraFov: number;
+  cameraSpeed: number;
+  showAxes: boolean;
+  showBaseplateGrid: boolean;
+  autoClearOutputOnPlay: boolean;
+  soundEnabled: boolean;
+}
+
+export interface PanelLayout {
+  guideWidth: number;
+  inspectorWidth: number;
+  consoleHeight: number;
+  editorSplitPct: number;
+  explorerSplitPct: number;
+}

@@ -9,6 +9,7 @@ import {
   FolderOpen,
   HelpCircle,
   Lightbulb,
+  Lock,
   Save,
   Sparkles,
   Trash2,
@@ -28,6 +29,7 @@ interface LessonGuidePanelProps {
   lessonIndex: number;
   totalLessons: number;
   isCompleted: boolean;
+  canGoNext: boolean;
   verification: LessonVerificationResult | null;
   onVerify: () => void;
   onPrevLesson: () => void;
@@ -92,6 +94,7 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
   lessonIndex,
   totalLessons,
   isCompleted,
+  canGoNext,
   verification,
   onVerify,
   onPrevLesson,
@@ -383,6 +386,16 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
                 </li>
               ))}
             </ul>
+            {verification.passed && lessonIndex < totalLessons - 1 && canGoNext && (
+              <button
+                type="button"
+                onClick={onNextLesson}
+                className="w-full mt-1 py-1.5 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>Continue to Next Lesson</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </section>
         )}
 
@@ -475,10 +488,24 @@ export const LessonGuidePanel: React.FC<LessonGuidePanelProps> = ({
           <button
             type="button"
             onClick={onNextLesson}
-            disabled={lessonIndex >= totalLessons - 1}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            disabled={!canGoNext}
+            title={
+              lessonIndex >= totalLessons - 1
+                ? 'Final lesson reached'
+                : canGoNext
+                ? 'Go to next lesson'
+                : 'Pass Check Solution to unlock the next lesson'
+            }
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+              canGoNext
+                ? 'text-emerald-300 hover:bg-emerald-950/50 cursor-pointer'
+                : 'text-slate-500 opacity-50 cursor-not-allowed'
+            }`}
           >
-            Next Lesson
+            {lessonIndex < totalLessons - 1 && !canGoNext && (
+              <Lock className="w-3 h-3 text-slate-400" />
+            )}
+            <span>Next Lesson</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>

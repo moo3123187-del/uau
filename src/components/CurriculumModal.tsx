@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Circle, X } from 'lucide-react';
+import { CheckCircle2, Circle, Lock, X } from 'lucide-react';
 import { CurriculumModuleSummary } from '../data/curriculum';
 import { LessonProgressRecord } from '../types/studio';
 
@@ -9,6 +9,7 @@ interface CurriculumModalProps {
   modules: CurriculumModuleSummary[];
   currentLessonId: string;
   progressMap: Record<string, LessonProgressRecord>;
+  unlockedLessonIds: Set<string>;
   onSelectLesson: (lessonId: string) => void;
 }
 
@@ -18,6 +19,7 @@ export const CurriculumModal: React.FC<CurriculumModalProps> = ({
   modules,
   currentLessonId,
   progressMap,
+  unlockedLessonIds,
   onSelectLesson,
 }) => {
   if (!open) return null;
@@ -60,25 +62,32 @@ export const CurriculumModal: React.FC<CurriculumModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {mod.lessons.map((lesson) => {
                     const completed = Boolean(progressMap[lesson.id]?.completed);
+                    const unlocked = unlockedLessonIds.has(lesson.id);
                     const active = lesson.id === currentLessonId;
                     return (
                       <button
                         key={lesson.id}
                         type="button"
+                        disabled={!unlocked}
                         onClick={() => {
+                          if (!unlocked) return;
                           onSelectLesson(lesson.id);
                           onClose();
                         }}
-                        className={`text-left p-3 rounded-lg border transition-colors cursor-pointer flex items-start gap-2.5 ${
-                          active
-                            ? 'bg-[#182338] border-[#2563EB]'
-                            : 'bg-[#0F141F] border-slate-800 hover:border-slate-700'
+                        className={`text-left p-3 rounded-lg border transition-colors flex items-start gap-2.5 ${
+                          !unlocked
+                            ? 'bg-[#0B0F17] border-slate-800/70 opacity-55 cursor-not-allowed'
+                            : active
+                            ? 'bg-[#182338] border-[#2563EB] cursor-pointer'
+                            : 'bg-[#0F141F] border-slate-800 hover:border-slate-700 cursor-pointer'
                         }`}
                       >
                         {completed ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : !unlocked ? (
+                          <Lock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                         ) : (
-                          <Circle className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                          <Circle className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
@@ -93,7 +102,9 @@ export const CurriculumModal: React.FC<CurriculumModalProps> = ({
                             {lesson.summary}
                           </p>
                           <div className="text-[10px] text-slate-500 mt-1.5 tabular-nums">
-                            {lesson.tier} · ~{lesson.estimatedMinutes} min
+                            {unlocked
+                              ? `${lesson.tier} · ~${lesson.estimatedMinutes} min`
+                              : 'Complete previous lessons to unlock'}
                           </div>
                         </div>
                       </button>

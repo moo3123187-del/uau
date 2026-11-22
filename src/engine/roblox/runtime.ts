@@ -1661,6 +1661,71 @@ export class RobloxStudioRuntime {
       }
     }
   }
+
+  async runCommandBar(rawCode: string): Promise<void> {
+    const code = rawCode.trim();
+    if (!code) return;
+
+    this.emitConsole('info', 'Studio', 'CommandBar', `> ${code}`);
+    const guarded = injectLuauLoopGuard(code);
+
+    // If Playtest is active, execute directly inside the running Luau VM
+    if (this.isPlaying && this.state && !this.state.destroyed && this.luauRunScript) {
+      const compiled = this.state.loadstring(guarded, 'CommandBar', false);
+      if (typeof compiled !== 'function') {
+        const msg = String(compiled);
+        const match = msg.match(/^\[string "[^"]*"\]:(\d+):\s*(.+)$/);
+        const cleanMsg = match ? `Line ${match[1]}: ${match[2]}` : msg;
+        this.emitConsole('error', 'Studio', 'CommandBar', cleanMsg);
+        return;
+      }
+      const gen = this.playGeneration;
+      const runner = this.luauRunScript;
+      await this.enqueueVmCall(gen, () => runner(compiled, 'command_bar', 'Server', 'CommandBar'));
+      this.callbacks.onSceneUpdate();
+      return;
+    }
+
+    // In Edit Mode, run against a transient Luau VM bound to the current DataModel
+    const gen = this.playGeneration;
+    let tempVm: LuauState | null = null;
+    try {
+      tempVm = await LuauState.createAsync(this.buildBridgeEnv(gen));
+      const preludeChunk = tempVm.loadstring(ROBLOX_LUAU_PRELUDE, 'RobloxPrelude', false);
+      if (typeof preludeChunk === 'function') {
+        await (preludeChunk as () => Promise<void>)();
+      }
+      const chunk = tempVm.loadstring(guarded, 'CommandBar', false);
+      if (typeof chunk !== 'function') {
+        const msg = String(chunk);
+        const match = msg.match(/^\[string "[^"]*"\]:(\d+):\s*(.+)$/);
+        const cleanMsg = match ? `Line ${match[1]}: ${match[2]}` : msg;
+        this.emitConsole('error', 'Studio', 'CommandBar', cleanMsg);
+        return;
+      }
+      if (this.luauRunScript) {
+        await this.luauRunScript(chunk, 'command_bar', 'Server', 'CommandBar');
+      } else {
+        await (chunk as () => Promise<void>)();
+      }
+      this.callbacks.onSceneUpdate();
+    } catch (err) {
+      this.emitConsole(
+        'error',
+        'Studio',
+        'CommandBar',
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      if (tempVm && !tempVm.destroyed) {
+        try {
+          tempVm.destroy();
+        } catch {
+          // Ignore teardown errors
+        }
+      }
+    }
+  }
 }
 
 function easeValue(t: number, style: string, dir: string): number {

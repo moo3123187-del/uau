@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, FileCode2, Sparkles } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp, FileCode2, Replace, Search, Sparkles, X } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
 import { DiagnosticItem, ScriptFile } from '../types/studio';
 
 interface CodeEditorProps {
@@ -576,14 +577,20 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChangeCode,
   diagnostics,
 }) => {
+  const { settings } = useSettings();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeScript = scripts.find((s) => s.path === activePath) ?? scripts[0];
   const code = activeScript?.code ?? '';
 
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [replaceQuery, setReplaceQuery] = useState('');
+  const [showReplace, setShowReplace] = useState(false);
   const [completion, setCompletion] = useState<{
     replaceStart: number;
     cursor: number;
@@ -595,6 +602,22 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   } | null>(null);
 
   const lines = useMemo(() => code.split('\n'), [code]);
+
+  const findMatches = useMemo(() => {
+    if (!findOpen || !findQuery) return [] as { start: number; end: number }[];
+    const q = findQuery.toLowerCase();
+    const hay = code.toLowerCase();
+    const matches: { start: number; end: number }[] = [];
+    let idx = 0;
+    while (idx <= hay.length - q.length) {
+      const found = hay.indexOf(q, idx);
+      if (found === -1) break;
+      matches.push({ start: found, end: found + q.length });
+      idx = found + Math.max(1, q.length);
+      if (matches.length >= 500) break;
+    }
+    return matches;
+  }, [code, findOpen, findQuery]);
 
   const highlightedLines = useMemo(() => {
     let inBlock = false;
@@ -635,10 +658,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const linesBefore = before.split('\n');
     const lineIdx = linesBefore.length - 1;
     const rawColText = linesBefore[lineIdx] ?? '';
-    const visualCols = rawColText.replace(/\t/g, '  ').length;
+    const tabSpaces = ' '.repeat(settings.tabSize);
+    const visualCols = rawColText.replace(/\t/g, tabSpaces).length;
 
-    const lineHeightPx = 13.5 * 1.65;
-    const charWidthPx = 8.15;
+    const fontPx = settings.editorFontSize;
+    const lineHeightPx = fontPx * 1.65;
+    const charWidthPx = fontPx * 0.6;
     const scrollTop = el?.scrollTop ?? 0;
     const scrollLeft = el?.scrollLeft ?? 0;
     const maxW = Math.max(240, (el?.clientWidth ?? 480) - 270);
@@ -654,6 +679,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   const refreshAutocomplete = (src: string, cursor: number, forceOpen = false) => {
+    if (!settings.autocompleteEnabled && !forceOpen) {
+      setCompletion(null);
+      return;
+    }
     const ctx = getAutocompleteContext(src, cursor, forceOpen);
     if (!ctx) {
       setCompletion(null);
@@ -725,6 +754,51 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     syncCursorPos(code, pos);
   };
 
+  const jumpToFindMatch = (dir: 1 | -1) => {
+    if (findMatches.length === 0) return;
+    const el = textareaRef.current;
+    const curStart = el?.selectionStart ?? 0;
+    let target = findMatches[0];
+    if (dir === 1) {
+      target = findMatches.find((m) => m.start > curStart) ?? findMatches[0];
+    } else {
+      const prev = [...findMatches].reverse().find((m) => m.start < curStart);
+      target = prev ?? findMatches[findMatches.length - 1];
+    }
+    if (el) {
+      el.focus();
+      el.selectionStart = target.start;
+      el.selectionEnd = target.end;
+      syncCursorPos(code, target.start);
+    }
+  };
+
+  const handleReplaceCurrent = () => {
+    if (!activeScript || !findQuery || findMatches.length === 0) return;
+    const el = textareaRef.current;
+    const selStart = el?.selectionStart ?? 0;
+    const selEnd = el?.selectionEnd ?? 0;
+    const selectedText = code.slice(selStart, selEnd);
+    const match =
+      selectedText.toLowerCase() === findQuery.toLowerCase()
+        ? { start: selStart, end: selEnd }
+        : findMatches.find((m) => m.start >= selStart) ?? findMatches[0];
+    const next = code.slice(0, match.start) + replaceQuery + code.slice(match.end);
+    applyEdit(next, match.start, match.start + replaceQuery.length);
+  };
+
+  const handleReplaceAll = () => {
+    if (!activeScript || !findQuery || findMatches.length === 0) return;
+    let out = '';
+    let last = 0;
+    for (const m of findMatches) {
+      out += code.slice(last, m.start) + replaceQuery;
+      last = m.end;
+    }
+    out += code.slice(last);
+    applyEdit(out, 0, 0);
+  };
+
   const handleScroll = () => {
     if (!textareaRef.current) return;
     const { scrollTop, scrollLeft } = textareaRef.current;
@@ -746,8 +820,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     // Auto-dedent when finishing `end`, `else`, `elseif`, or `until` on an indented line
     const lineStart = nextCode.lastIndexOf('\n', cursor - 1) + 1;
     const beforeInLine = nextCode.slice(lineStart, cursor);
-    const afterInLine = nextCode.slice(cursor, nextCode.indexOf('\n', cursor) === -1 ? nextCode.length : nextCode.indexOf('\n', cursor));
-    if (/^\t+(end|else|elseif|until)$/.test(beforeInLine) && afterInLine.trim() === '') {
+    const afterInLine = nextCode.slice(
+      cursor,
+      nextCode.indexOf('\n', cursor) === -1 ? nextCode.length : nextCode.indexOf('\n', cursor)
+    );
+    if (
+      settings.autoIndentBlocks &&
+      /^\t+(end|else|elseif|until)$/.test(beforeInLine) &&
+      afterInLine.trim() === ''
+    ) {
       // Remove one leading tab so it aligns cleanly with its opener
       nextCode = nextCode.slice(0, lineStart) + nextCode.slice(lineStart + 1);
       cursor = Math.max(lineStart, cursor - 1);
@@ -772,6 +853,87 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const el = e.currentTarget;
     const start = el.selectionStart;
     const end = el.selectionEnd;
+
+    // Ctrl+F / Cmd+F opens Find & Replace bar
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      const selected = code.slice(start, end);
+      if (selected && !selected.includes('\n')) setFindQuery(selected);
+      setFindOpen(true);
+      requestAnimationFrame(() => findInputRef.current?.focus());
+      return;
+    }
+
+    // Ctrl+/ or Cmd+/ toggles `-- ` comment on current/selected lines
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      setCompletion(null);
+      const blockStart = code.lastIndexOf('\n', start - 1) + 1;
+      const lineEndIdx = code.indexOf('\n', end);
+      const blockEnd = lineEndIdx === -1 ? code.length : lineEndIdx;
+      const selectedBlock = code.slice(blockStart, blockEnd);
+      const blockLines = selectedBlock.split('\n');
+      const allCommented = blockLines.every((ln) => ln.trim() === '' || /^\s*--/.test(ln));
+
+      let deltaTotal = 0;
+      const updated = blockLines.map((ln) => {
+        if (ln.trim() === '') return ln;
+        if (allCommented) {
+          const nextLn = ln.replace(/^(\s*)--\s?/, '$1');
+          deltaTotal -= ln.length - nextLn.length;
+          return nextLn;
+        }
+        const m = ln.match(/^(\s*)(.*)$/);
+        const indent = m?.[1] ?? '';
+        const body = m?.[2] ?? ln;
+        deltaTotal += 3;
+        return `${indent}-- ${body}`;
+      });
+      const next = code.slice(0, blockStart) + updated.join('\n') + code.slice(blockEnd);
+      const nextPos = Math.max(blockStart, end + deltaTotal);
+      applyEdit(next, nextPos, nextPos);
+      return;
+    }
+
+    // Ctrl+D / Cmd+D duplicates current line or selection
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      setCompletion(null);
+      const blockStart = code.lastIndexOf('\n', start - 1) + 1;
+      const lineEndIdx = code.indexOf('\n', end);
+      const blockEnd = lineEndIdx === -1 ? code.length : lineEndIdx;
+      const chunk = code.slice(blockStart, blockEnd);
+      const next = code.slice(0, blockEnd) + '\n' + chunk + code.slice(blockEnd);
+      applyEdit(next, blockEnd + 1, blockEnd + 1 + chunk.length);
+      return;
+    }
+
+    // Alt+ArrowUp / Alt+ArrowDown moves selected line(s) up or down (Roblox Studio QoL)
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      setCompletion(null);
+      const blockStart = code.lastIndexOf('\n', start - 1) + 1;
+      const lineEndIdx = code.indexOf('\n', end);
+      const blockEnd = lineEndIdx === -1 ? code.length : lineEndIdx;
+
+      if (e.key === 'ArrowUp' && blockStart > 0) {
+        const prevLineStart = code.lastIndexOf('\n', blockStart - 2) + 1;
+        const prevLine = code.slice(prevLineStart, blockStart - 1);
+        const curBlock = code.slice(blockStart, blockEnd);
+        const next = code.slice(0, prevLineStart) + curBlock + '\n' + prevLine + code.slice(blockEnd);
+        const shift = -(prevLine.length + 1);
+        applyEdit(next, start + shift, end + shift);
+      } else if (e.key === 'ArrowDown' && blockEnd < code.length) {
+        const nextLineEndIdx = code.indexOf('\n', blockEnd + 1);
+        const nextLineEnd = nextLineEndIdx === -1 ? code.length : nextLineEndIdx;
+        const nextLine = code.slice(blockEnd + 1, nextLineEnd);
+        const curBlock = code.slice(blockStart, blockEnd);
+        const next = code.slice(0, blockStart) + nextLine + '\n' + curBlock + code.slice(nextLineEnd);
+        const shift = nextLine.length + 1;
+        applyEdit(next, start + shift, end + shift);
+      }
+      return;
+    }
 
     // Ctrl+Space opens IntelliSense manually
     if (e.ctrlKey && e.code === 'Space') {
@@ -822,7 +984,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
 
     // Auto-close pairs & wrap selection
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key in AUTO_PAIRS) {
+    if (settings.autoClosePairs && !e.ctrlKey && !e.metaKey && !e.altKey && e.key in AUTO_PAIRS) {
       const openChar = e.key;
       const closeChar = AUTO_PAIRS[openChar];
       const nextChar = code[end] ?? '';
@@ -864,7 +1026,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
 
     // Overtype closing bracket when cursor is already before it
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key in CLOSING_TO_OPEN && start === end) {
+    if (settings.autoClosePairs && !e.ctrlKey && !e.metaKey && !e.altKey && e.key in CLOSING_TO_OPEN && start === end) {
       if (code[start] === e.key) {
         e.preventDefault();
         el.selectionStart = el.selectionEnd = start + 1;
@@ -875,7 +1037,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
 
     // Backspace deletes matching empty pair (`(|)`, `"|"`, `{|}`, `[|]`)
-    if (e.key === 'Backspace' && start === end && start > 0) {
+    if (settings.autoClosePairs && e.key === 'Backspace' && start === end && start > 0) {
       const prevChar = code[start - 1];
       const nextChar = code[start];
       if (AUTO_PAIRS[prevChar] === nextChar) {
@@ -888,7 +1050,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
 
     // Roblox Studio Smart Enter: split pairs `{|}`/`(|)`, indent blocks, and auto-insert `end`
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && settings.autoIndentBlocks) {
       e.preventDefault();
       setCompletion(null);
 
@@ -990,54 +1152,189 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#0F1520] min-h-0">
-      {/* Multi-file Script Tabs */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#121824] border-b border-slate-800 overflow-x-auto shrink-0">
-        {scripts.map((s) => {
-          const isActive = s.path === activeScript?.path;
-          const hasErr = diagnostics.some((d) => d.scriptPath === s.path);
-          const badgeColor =
-            s.className === 'Script'
-              ? 'text-emerald-400'
-              : s.className === 'LocalScript'
-              ? 'text-sky-400'
-              : 'text-violet-400';
+      {/* Multi-file Script Tabs + Find Toggle */}
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#121824] border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto min-w-0">
+          {scripts.map((s) => {
+            const isActive = s.path === activeScript?.path;
+            const hasErr = diagnostics.some((d) => d.scriptPath === s.path);
+            const badgeColor =
+              s.className === 'Script'
+                ? 'text-emerald-400'
+                : s.className === 'LocalScript'
+                ? 'text-sky-400'
+                : 'text-violet-400';
 
-          return (
-            <button
-              key={s.path}
-              type="button"
-              onClick={() => onSelectScript(s.path)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                isActive
-                  ? 'bg-[#1D273B] text-slate-100 border border-slate-700'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
-              }`}
-            >
-              <FileCode2 className={`w-3.5 h-3.5 ${badgeColor}`} />
-              <span>{s.name}</span>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {s.className === 'Script' ? 'Server' : s.className === 'LocalScript' ? 'Client' : 'Module'}
-              </span>
-              {hasErr && <AlertCircle className="w-3 h-3 text-rose-400" />}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={s.path}
+                type="button"
+                onClick={() => onSelectScript(s.path)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-[#1D273B] text-slate-100 border border-slate-700'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                }`}
+              >
+                <FileCode2 className={`w-3.5 h-3.5 ${badgeColor}`} />
+                <span>{s.name}</span>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {s.className === 'Script' ? 'Server' : s.className === 'LocalScript' ? 'Client' : 'Module'}
+                </span>
+                {hasErr && <AlertCircle className="w-3 h-3 text-rose-400" />}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setFindOpen((v) => !v);
+            requestAnimationFrame(() => findInputRef.current?.focus());
+          }}
+          title="Find & Replace (Ctrl+F)"
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium shrink-0 transition-colors cursor-pointer ${
+            findOpen
+              ? 'bg-[#1D273B] text-sky-300 border border-slate-700'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Find</span>
+        </button>
       </div>
+
+      {/* Inline Find & Replace Bar */}
+      {findOpen && (
+        <div className="px-3 py-1.5 bg-[#0C111A] border-b border-slate-800 flex flex-wrap items-center gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-1.5 bg-[#121824] border border-slate-700 rounded px-2 py-1">
+            <Search className="w-3 h-3 text-slate-500 shrink-0" />
+            <input
+              ref={findInputRef}
+              type="text"
+              value={findQuery}
+              onChange={(e) => setFindQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  jumpToFindMatch(e.shiftKey ? -1 : 1);
+                } else if (e.key === 'Escape') {
+                  setFindOpen(false);
+                  textareaRef.current?.focus();
+                }
+              }}
+              placeholder="Find in script..."
+              className="bg-transparent text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none w-36 sm:w-44"
+            />
+            {findQuery && (
+              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                {findMatches.length}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => jumpToFindMatch(-1)}
+            disabled={findMatches.length === 0}
+            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-40 cursor-pointer"
+            title="Previous match (Shift+Enter)"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => jumpToFindMatch(1)}
+            disabled={findMatches.length === 0}
+            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-40 cursor-pointer"
+            title="Next match (Enter)"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowReplace((r) => !r)}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium cursor-pointer ${
+              showReplace ? 'bg-slate-800 text-sky-300' : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Toggle Replace"
+          >
+            <Replace className="w-3 h-3" />
+            <span>Replace</span>
+          </button>
+
+          {showReplace && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={replaceQuery}
+                onChange={(e) => setReplaceQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setFindOpen(false);
+                    textareaRef.current?.focus();
+                  }
+                }}
+                placeholder="Replace with..."
+                className="bg-[#121824] border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none w-32"
+              />
+              <button
+                type="button"
+                onClick={handleReplaceCurrent}
+                disabled={findMatches.length === 0}
+                className="px-2 py-1 rounded bg-[#192233] hover:bg-[#233047] disabled:opacity-40 text-slate-200 text-[11px] font-medium cursor-pointer"
+              >
+                One
+              </button>
+              <button
+                type="button"
+                onClick={handleReplaceAll}
+                disabled={findMatches.length === 0}
+                className="px-2 py-1 rounded bg-[#2563EB] hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-medium cursor-pointer"
+              >
+                All
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setFindOpen(false);
+              textareaRef.current?.focus();
+            }}
+            className="ml-auto p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            aria-label="Close find bar"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Synchronized Line Numbers + Highlighted Backdrop + Editable Textarea + Luau Autocomplete */}
       <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <div
           ref={gutterRef}
-          className="w-12 py-3.5 pb-8 bg-[#0C111A] border-r border-slate-800/80 text-right pr-3 select-none overflow-hidden font-mono text-[13.5px] leading-[1.65] text-slate-600 tabular-nums shrink-0"
+          className="w-12 py-3.5 pb-8 bg-[#0C111A] border-r border-slate-800/80 text-right pr-3 select-none overflow-hidden font-mono leading-[1.65] text-slate-600 tabular-nums shrink-0"
+          style={{ fontSize: `${settings.editorFontSize}px` }}
         >
           {lines.map((_, idx) => {
             const lineNum = idx + 1;
             const err = errorLines.get(lineNum);
+            const isActiveLine = settings.highlightActiveLine && cursorPos.line === lineNum;
             return (
               <div
                 key={lineNum}
                 title={err?.message}
-                className={err ? 'text-rose-400 font-semibold bg-rose-500/15 -mr-3 pr-3' : ''}
+                className={
+                  err
+                    ? 'text-rose-400 font-semibold bg-rose-500/15 -mr-3 pr-3'
+                    : isActiveLine
+                    ? 'text-slate-300 bg-slate-800/35 -mr-3 pr-3'
+                    : ''
+                }
               >
                 {lineNum}
               </div>
@@ -1049,13 +1346,25 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           <div
             ref={backdropRef}
             aria-hidden="true"
-            className="absolute inset-0 py-3.5 pb-8 px-4 font-mono text-[13.5px] leading-[1.65] text-slate-200 whitespace-pre overflow-hidden pointer-events-none"
-            style={{ tabSize: 2 }}
+            className={`absolute inset-0 py-3.5 pb-8 px-4 font-mono leading-[1.65] text-slate-200 overflow-hidden pointer-events-none ${
+              settings.wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+            }`}
+            style={{ tabSize: settings.tabSize, fontSize: `${settings.editorFontSize}px` }}
           >
             {highlightedLines.map((nodes, idx) => {
               const hasErr = errorLines.has(idx + 1);
+              const isActiveLine = settings.highlightActiveLine && cursorPos.line === idx + 1;
               return (
-                <div key={idx} className={hasErr ? 'bg-rose-500/10' : ''}>
+                <div
+                  key={idx}
+                  className={
+                    hasErr
+                      ? 'bg-rose-500/10'
+                      : isActiveLine
+                      ? 'bg-slate-800/30 -mx-4 px-4'
+                      : ''
+                  }
+                >
                   {lines[idx].length > 0 ? nodes : ' '}
                 </div>
               );
@@ -1088,8 +1397,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             autoComplete="off"
             autoCorrect="off"
             aria-label="Luau code editor"
-            className="relative z-10 w-full h-full py-3.5 pb-8 px-4 bg-transparent text-transparent caret-blue-400 font-mono text-[13.5px] leading-[1.65] resize-none focus:outline-none whitespace-pre overflow-auto"
-            style={{ tabSize: 2 }}
+            className={`relative z-10 w-full h-full py-3.5 pb-8 px-4 bg-transparent text-transparent caret-blue-400 font-mono leading-[1.65] resize-none focus:outline-none ${
+              settings.wordWrap
+                ? 'whitespace-pre-wrap break-words overflow-y-auto overflow-x-hidden'
+                : 'whitespace-pre overflow-auto'
+            }`}
+            style={{ tabSize: settings.tabSize, fontSize: `${settings.editorFontSize}px` }}
           />
 
           {/* Floating Roblox Studio IntelliSense Autocomplete */}

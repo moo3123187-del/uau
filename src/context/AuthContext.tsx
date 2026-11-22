@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   User,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
 } from 'firebase/auth';
 import {
   collection,
@@ -19,11 +25,18 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { CURRICULUM_LESSONS } from '../data/curriculum';
 import { LessonProgressRecord, SavedSandboxProject } from '../types/studio';
+
+interface EmailAuthResult {
+  ok: boolean;
+  needsVerification: boolean;
+}
 
 interface AuthContextValue {
   user: User | null;
   authReady: boolean;
+  isCloudSyncEnabled: boolean;
   signingIn: boolean;
   authError: string | null;
   clearAuthError: () => void;
@@ -31,7 +44,12 @@ interface AuthContextValue {
   savedProjects: SavedSandboxProject[];
   xp: number;
   currentLessonId: string;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<boolean>;
+  signInWithEmail: (email: string, password: string) => Promise<EmailAuthResult>;
+  signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<EmailAuthResult>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
+  resendVerificationEmail: () => Promise<boolean>;
+  refreshEmailVerification: () => Promise<boolean>;
   signOutUser: () => Promise<void>;
   saveLessonAttempt: (
     lessonId: string,
@@ -98,20 +116,45 @@ function formatSignInError(err: unknown): string {
     typeof err === 'object' && err !== null && 'code' in err
       ? String((err as { code?: unknown }).code ?? '')
       : '';
-  const msg = err instanceof Error ? err.message : 'Unable to sign in with Google.';
+  const msg = err instanceof Error ? err.message : 'Unable to sign in.';
 
   if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
     const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
-    return `Domain "${host}" is not authorized for Google Sign-In yet. Add "${host}" under Firebase Console -> Authentication -> Settings -> Authorized domains (project: ${firebaseConfig.projectId}).`;
+    return `Domain "${host}" is not authorized for sign-in yet. Add "${host}" under Firebase Console -> Authentication -> Settings -> Authorized domains (project: ${firebaseConfig.projectId}).`;
+  }
+  if (code === 'auth/operation-not-allowed') {
+    return `Email/Password sign-in is not enabled yet in Firebase Console. Enable it under Authentication -> Sign-in method -> Email/Password (project: ${firebaseConfig.projectId}).`;
+  }
+  if (code === 'auth/email-already-in-use') {
+    return 'An account with this email already exists. Switch to Sign In with Email instead.';
+  }
+  if (
+    code === 'auth/invalid-credential' ||
+    code === 'auth/wrong-password' ||
+    code === 'auth/user-not-found'
+  ) {
+    return 'Invalid email or password. Double-check your details or reset your password.';
+  }
+  if (code === 'auth/invalid-email') {
+    return 'Please enter a valid email address.';
+  }
+  if (code === 'auth/weak-password') {
+    return 'Password must be at least 6 characters long.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Too many attempts right now. Wait a moment and try again.';
+  }
+  if (code === 'auth/user-disabled') {
+    return 'This account has been disabled.';
   }
   if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
-    return 'Sign-in pop-up was blocked by your browser. Allow pop-ups for this site and click Sign In again.';
+    return 'Sign-in pop-up was blocked by your browser. Allow pop-ups for this site and click Continue with Google again.';
   }
   if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
     return 'Sign-in pop-up was closed before finishing.';
   }
   if (code === 'auth/network-request-failed') {
-    return 'Network error while contacting Google Sign-In. Check your connection and try again.';
+    return 'Network error while contacting authentication service. Check your connection and try again.';
   }
   return msg;
 }
@@ -121,22 +164,119 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authReady, setAuthReady] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [cloudSyncEpoch, setCloudSyncEpoch] = useState(0);
   const [progressMap, setProgressMap] = useState<Record<string, LessonProgressRecord>>(() =>
     loadLocalProgress()
   );
   const [savedProjects, setSavedProjects] = useState<SavedSandboxProject[]>(() =>
     loadLocalProjects()
   );
-  const [xp, setXp] = useState<number>(0);
+  const [xp, setXp] = useState<number>(() =>
+    CURRICULUM_LESSONS.reduce(
+      (sum, l) => (loadLocalProgress()[l.id]?.completed ? sum + l.xp : sum),
+      0
+    )
+  );
   const [currentLessonId, setCurrentLessonId] = useState<string>('m1_l1_print');
 
   const profilePromiseRef = useRef<Promise<void> | null>(null);
+  const isCloudSyncEnabled = Boolean(user && user.emailVerified);
+
+  const mergeGuestDataIntoCloud = async (u: User, existingXp: number, existingCompleted: number) => {
+    const localProg = loadLocalProgress();
+    const localProjs = loadLocalProjects();
+    const progEntries = Object.values(localProg);
+    if (progEntries.length === 0 && localProjs.length === 0) return;
+
+    let addedXp = 0;
+    let addedCompleted = 0;
+
+    for (const rec of progEntries) {
+      const safeLessonId = sanitizeId(rec.lessonId, '');
+      if (!safeLessonId) continue;
+      const ref = doc(db, 'users', u.uid, 'progress', safeLessonId);
+      const existingSnap = await getDoc(ref);
+      const boundedScripts: Record<string, string> = {};
+      Object.entries(rec.scripts || {})
+        .slice(0, 16)
+        .forEach(([k, v]) => {
+          boundedScripts[k] = String(v).slice(0, 30000);
+        });
+
+      if (!existingSnap.exists()) {
+        await setDoc(ref, {
+          userId: u.uid,
+          lessonId: safeLessonId,
+          completed: Boolean(rec.completed),
+          scripts: boundedScripts,
+          attempts: Math.max(1, Math.min(10000, Number(rec.attempts ?? 1))),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        if (rec.completed) {
+          addedCompleted += 1;
+          const lessonDef = CURRICULUM_LESSONS.find((l) => l.id === safeLessonId);
+          addedXp += lessonDef?.xp ?? 50;
+        }
+      } else if (rec.completed && !existingSnap.data().completed) {
+        await updateDoc(ref, {
+          completed: true,
+          scripts: boundedScripts,
+          attempts: Math.min(10000, Number(existingSnap.data().attempts ?? 0) + Number(rec.attempts ?? 1)),
+          updatedAt: serverTimestamp(),
+        });
+        addedCompleted += 1;
+        const lessonDef = CURRICULUM_LESSONS.find((l) => l.id === safeLessonId);
+        addedXp += lessonDef?.xp ?? 50;
+      }
+    }
+
+    for (const proj of localProjs) {
+      const safeId = sanitizeId(proj.id, `proj_${Date.now()}`);
+      const ref = doc(db, 'users', u.uid, 'projects', safeId);
+      const existingSnap = await getDoc(ref);
+      if (!existingSnap.exists()) {
+        const boundedScripts: Record<string, string> = {};
+        Object.entries(proj.scripts || {})
+          .slice(0, 20)
+          .forEach(([k, v]) => {
+            boundedScripts[k] = String(v).slice(0, 40000);
+          });
+        await setDoc(ref, {
+          userId: u.uid,
+          title: (proj.title || 'Untitled Experience').trim().slice(0, 80) || 'Untitled Experience',
+          templateId: sanitizeId(proj.templateId || 'blank', 'blank'),
+          scripts: boundedScripts,
+          dataStoreSnapshot: sanitizeJsonObject(proj.dataStoreSnapshot || {}, 100),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    if (addedCompleted > 0 || addedXp > 0) {
+      await updateDoc(doc(db, 'users', u.uid), {
+        completedCount: Math.min(100, existingCompleted + addedCompleted),
+        xp: Math.min(100000, existingXp + addedXp),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    try {
+      localStorage.removeItem(LOCAL_PROGRESS_KEY);
+      localStorage.removeItem(LOCAL_PROJECTS_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   const ensureUserProfile = async (u: User) => {
     const profilePath = `users/${u.uid}`;
     const ref = doc(db, 'users', u.uid);
     try {
       const snap = await getDoc(ref);
+      let baseXp = 0;
+      let baseCompleted = 0;
       if (!snap.exists()) {
         const displayName =
           (u.displayName?.trim() || u.email?.split('@')[0] || 'Roblox Scripter').slice(0, 100);
@@ -151,9 +291,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } else {
         const data = snap.data();
-        if (typeof data.xp === 'number') setXp(data.xp);
+        if (typeof data.xp === 'number') {
+          baseXp = data.xp;
+          setXp(data.xp);
+        }
+        if (typeof data.completedCount === 'number') {
+          baseCompleted = data.completedCount;
+        }
         if (typeof data.currentLessonId === 'string') setCurrentLessonId(data.currentLessonId);
       }
+      await mergeGuestDataIntoCloud(u, baseXp, baseCompleted);
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, profilePath);
     }
@@ -162,12 +309,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        const p = ensureUserProfile(u).catch((err) => {
-          const msg = err instanceof Error ? err.message : 'Unable to load cloud profile.';
-          setAuthError(`Signed in, but cloud database access failed: ${msg}`);
-        });
-        profilePromiseRef.current = p;
-        await p;
+        if (u.emailVerified) {
+          const p = ensureUserProfile(u).catch((err) => {
+            const msg = err instanceof Error ? err.message : 'Unable to load cloud profile.';
+            setAuthError(`Signed in, but cloud database access failed: ${msg}`);
+          });
+          profilePromiseRef.current = p;
+          await p;
+        } else {
+          profilePromiseRef.current = null;
+        }
         setUser(u);
         setAuthReady(true);
       } else {
@@ -180,7 +331,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (!authReady || !user) return;
+    if (!authReady || !user || !user.emailVerified) return;
 
     const progressPath = `users/${user.uid}/progress`;
     const progressQuery = query(
@@ -256,16 +407,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubProjects();
       unsubProfile();
     };
-  }, [authReady, user]);
+  }, [authReady, user, isCloudSyncEnabled, cloudSyncEpoch]);
 
-  const signInWithGoogle = async () => {
-    if (signingIn) return;
+  const signInWithGoogle = async (): Promise<boolean> => {
+    if (signingIn) return false;
     setAuthError(null);
     setSigningIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (err) {
       setAuthError(formatSignInError(err));
+      return false;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string): Promise<EmailAuthResult> => {
+    if (signingIn) return { ok: false, needsVerification: false };
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      return { ok: true, needsVerification: !cred.user.emailVerified };
+    } catch (err) {
+      setAuthError(formatSignInError(err));
+      return { ok: false, needsVerification: false };
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    displayName?: string
+  ): Promise<EmailAuthResult> => {
+    if (signingIn) return { ok: false, needsVerification: false };
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const cleanName = displayName?.trim().slice(0, 100);
+      if (cleanName) {
+        await updateProfile(cred.user, { displayName: cleanName });
+      }
+      if (!cred.user.emailVerified) {
+        await sendEmailVerification(cred.user);
+      }
+      setUser(cred.user);
+      return { ok: true, needsVerification: !cred.user.emailVerified };
+    } catch (err) {
+      setAuthError(formatSignInError(err));
+      return { ok: false, needsVerification: false };
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const sendPasswordReset = async (email: string): Promise<boolean> => {
+    if (signingIn) return false;
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      return true;
+    } catch (err) {
+      setAuthError(formatSignInError(err));
+      return false;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const resendVerificationEmail = async (): Promise<boolean> => {
+    if (!auth.currentUser || signingIn) return false;
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      return true;
+    } catch (err) {
+      setAuthError(formatSignInError(err));
+      return false;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const refreshEmailVerification = async (): Promise<boolean> => {
+    if (!auth.currentUser || signingIn) return false;
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      await reload(auth.currentUser);
+      if (auth.currentUser.emailVerified) {
+        await auth.currentUser.getIdToken(true);
+        const p = ensureUserProfile(auth.currentUser).catch((err) => {
+          const msg = err instanceof Error ? err.message : 'Unable to load cloud profile.';
+          setAuthError(`Email verified, but cloud database access failed: ${msg}`);
+        });
+        profilePromiseRef.current = p;
+        await p;
+        setUser(auth.currentUser);
+        setCloudSyncEpoch((e) => e + 1);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      setAuthError(formatSignInError(err));
+      return false;
     } finally {
       setSigningIn(false);
     }
@@ -274,16 +526,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutUser = async () => {
     setAuthError(null);
     await signOut(auth);
-    setProgressMap(loadLocalProgress());
+    const localProg = loadLocalProgress();
+    setProgressMap(localProg);
     setSavedProjects(loadLocalProjects());
-    setXp(0);
+    setXp(
+      CURRICULUM_LESSONS.reduce(
+        (sum, l) => (localProg[l.id]?.completed ? sum + l.xp : sum),
+        0
+      )
+    );
     setCurrentLessonId('m1_l1_print');
   };
 
   const setActiveLessonPointer = async (lessonId: string) => {
     const safeId = sanitizeId(lessonId, 'm1_l1_print');
     setCurrentLessonId(safeId);
-    if (!user) return;
+    if (!user || !user.emailVerified) return;
     if (profilePromiseRef.current) await profilePromiseRef.current;
     const profileRef = doc(db, 'users', user.uid);
     try {
@@ -315,7 +573,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         boundedScripts[k] = String(v).slice(0, 30000);
       });
 
-    if (!user) {
+    if (!user || !user.emailVerified) {
       const nextMap: Record<string, LessonProgressRecord> = {
         ...progressMap,
         [safeLessonId]: {
@@ -397,7 +655,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const boundedStore = sanitizeJsonObject(dataStoreSnapshot, 100);
 
-    if (!user) {
+    if (!user || !user.emailVerified) {
       const nextProj: SavedSandboxProject = {
         id,
         userId: 'guest',
@@ -449,7 +707,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteSandboxProject = async (projectId: string) => {
     const safeId = sanitizeId(projectId, 'proj');
-    if (!user) {
+    if (!user || !user.emailVerified) {
       const updated = savedProjects.filter((p) => p.id !== safeId);
       setSavedProjects(updated);
       localStorage.setItem(LOCAL_PROJECTS_KEY, JSON.stringify(updated));
@@ -469,6 +727,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         authReady,
+        isCloudSyncEnabled,
         signingIn,
         authError,
         clearAuthError: () => setAuthError(null),
@@ -477,6 +736,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         xp,
         currentLessonId,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
+        sendPasswordReset,
+        resendVerificationEmail,
+        refreshEmailVerification,
         signOutUser,
         saveLessonAttempt,
         setActiveLessonPointer,

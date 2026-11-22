@@ -11,6 +11,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getDefaultPanelLayout, useSettings } from '../context/SettingsContext';
 import { SANDBOX_TEMPLATES } from '../data/sandboxTemplates';
 import { checkRealLuauDiagnostics, ensureLuauWasmReady } from '../engine/luau/compiler';
 import { RobloxStudioRuntime } from '../engine/roblox/runtime';
@@ -39,6 +40,7 @@ interface StudioWorkspaceProps {
   lesson: LessonDefinition;
   lessonIndex: number;
   totalLessons: number;
+  canGoNext: boolean;
   onSelectLessonByIndex: (idx: number) => void;
   pendingSnippet: { id: number; code: string } | null;
   loadedProjectRequest: { id: number; project: SavedSandboxProject } | null;
@@ -62,6 +64,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   lesson,
   lessonIndex,
   totalLessons,
+  canGoNext,
   onSelectLessonByIndex,
   pendingSnippet,
   loadedProjectRequest,
@@ -74,6 +77,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
     saveSandboxProject,
     deleteSandboxProject,
   } = useAuth();
+  const { settings, layout, updateLayout } = useSettings();
 
   const [scripts, setScripts] = useState<ScriptFile[]>([]);
   const [activeScriptPath, setActiveScriptPath] = useState<string>('');
@@ -93,14 +97,19 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeProjectTitle, setActiveProjectTitle] = useState<string>('My Model-Free Game');
 
-  // Spacious workspace layout controls
+  // Spacious workspace layout controls (Explorer defaults open on >=1280px screens)
   const [showGuide, setShowGuide] = useState(true);
   const [showInspector, setShowInspector] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth >= 1440 : false
+    typeof window !== 'undefined' ? window.innerWidth >= 1280 : false
   );
   const [showConsole, setShowConsole] = useState(true);
   const [centerView, setCenterView] = useState<'split' | 'code' | 'stage'>('split');
   const [wasmReady, setWasmReady] = useState(false);
+
+  const centerSplitRef = useRef<HTMLDivElement | null>(null);
+  const inspectorSplitRef = useRef<HTMLDivElement | null>(null);
+  const soundEnabledRef = useRef(settings.soundEnabled);
+  soundEnabledRef.current = settings.soundEnabled;
 
   useEffect(() => {
     let active = true;
@@ -137,7 +146,9 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
         setDataStores(stores);
       },
       onSoundPlay: (soundType) => {
-        playProceduralSound(soundType);
+        if (soundEnabledRef.current) {
+          playProceduralSound(soundType);
+        }
       },
     });
   }
@@ -313,10 +324,12 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
       rt.loadScene(tpl.hierarchy, scriptsRef.current, tpl.starterDataStore);
     }
 
-    logsRef.current = [];
-    networkLogsRef.current = [];
-    setLogs([]);
-    setNetworkLogs([]);
+    if (settings.autoClearOutputOnPlay) {
+      logsRef.current = [];
+      networkLogsRef.current = [];
+      setLogs([]);
+      setNetworkLogs([]);
+    }
     setIsPlaying(true);
     setHasRunPlay(true);
     setShowRunDiagnostics(true);
@@ -400,10 +413,6 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
     };
 
     const result = lesson.verify(ctx);
-    setVerification(result);
-    if (result.passed) {
-      playProceduralSound('success');
-    }
 
     // Do not leave the Play/Stop button stuck in Stop mode if the user only clicked Check Solution
     if (!wasPlaying) {
@@ -414,6 +423,73 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
     }
 
     await saveLessonAttempt(lesson.id, result.passed, scriptMap, lesson.xp);
+
+    setVerification(result);
+    if (result.passed && settings.soundEnabled) {
+      playProceduralSound('success');
+    }
+  };
+
+  // Global Roblox Studio shortcuts: F5 (Play/Stop), Shift+F5 (Stop), Ctrl/Cmd+Enter (Check Solution)
+  const shortcutHandlersRef = useRef({
+    isPlaying,
+    mode,
+    handlePlay,
+    handleStop,
+    handleVerify,
+  });
+  shortcutHandlersRef.current = {
+    isPlaying,
+    mode,
+    handlePlay,
+    handleStop,
+    handleVerify,
+  };
+
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        const cur = shortcutHandlersRef.current;
+        if (e.shiftKey || cur.isPlaying) {
+          cur.handleStop();
+        } else {
+          void cur.handlePlay();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const cur = shortcutHandlersRef.current;
+        if (cur.mode === 'learn') {
+          e.preventDefault();
+          void cur.handleVerify();
+        }
+      }
+    };
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown);
+  }, []);
+
+  const startDrag = (
+    e: React.MouseEvent,
+    cursor: 'col-resize' | 'row-resize',
+    onMove: (ev: MouseEvent) => void
+  ) => {
+    e.preventDefault();
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = cursor;
+    document.body.style.userSelect = 'none';
+
+    const handleMove = (ev: MouseEvent) => onMove(ev);
+    const handleUp = () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
   };
 
   const handleOpenScriptFromExplorer = (path: string) => {
@@ -474,35 +550,59 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden bg-[#0B0F17]">
-      {/* Left Rail: Lesson Guide or Sandbox Controls */}
+      {/* Left Rail: Lesson Guide or Sandbox Controls (Resizable on md+) */}
       {showGuide && (
-        <div className="w-[285px] shrink-0 min-h-0 flex flex-col">
-          <LessonGuidePanel
-            mode={mode}
-            lesson={lesson}
-            lessonIndex={lessonIndex}
-            totalLessons={totalLessons}
-            isCompleted={Boolean(progressMap[lesson.id]?.completed)}
-            verification={verification}
-            onVerify={handleVerify}
-            onPrevLesson={() => onSelectLessonByIndex(Math.max(0, lessonIndex - 1))}
-            onNextLesson={() => onSelectLessonByIndex(Math.min(totalLessons - 1, lessonIndex + 1))}
-            onResetLesson={handleReset}
-            sandboxTemplates={SANDBOX_TEMPLATES}
-            activeTemplateId={activeTemplateId}
-            onSelectTemplate={loadSandboxTemplate}
-            savedProjects={savedProjects}
-            activeProjectId={activeProjectId}
-            activeProjectTitle={activeProjectTitle}
-            onSaveProject={handleSaveSandbox}
-            onLoadProject={loadSavedProject}
-            onDeleteProject={deleteSandboxProject}
-            isSignedIn={Boolean(user)}
+        <>
+          <div
+            style={{ width: `${layout.guideWidth}px` }}
+            className="shrink-0 min-h-0 flex flex-col max-w-[46vw]"
+          >
+            <LessonGuidePanel
+              mode={mode}
+              lesson={lesson}
+              lessonIndex={lessonIndex}
+              totalLessons={totalLessons}
+              isCompleted={Boolean(progressMap[lesson.id]?.completed || verification?.passed)}
+              canGoNext={
+                lessonIndex < totalLessons - 1 &&
+                (canGoNext || Boolean(verification?.passed))
+              }
+              verification={verification}
+              onVerify={handleVerify}
+              onPrevLesson={() => onSelectLessonByIndex(Math.max(0, lessonIndex - 1))}
+              onNextLesson={() => onSelectLessonByIndex(Math.min(totalLessons - 1, lessonIndex + 1))}
+              onResetLesson={handleReset}
+              sandboxTemplates={SANDBOX_TEMPLATES}
+              activeTemplateId={activeTemplateId}
+              onSelectTemplate={loadSandboxTemplate}
+              savedProjects={savedProjects}
+              activeProjectId={activeProjectId}
+              activeProjectTitle={activeProjectTitle}
+              onSaveProject={handleSaveSandbox}
+              onLoadProject={loadSavedProject}
+              onDeleteProject={deleteSandboxProject}
+              isSignedIn={Boolean(user)}
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            title="Drag to resize Guide (double-click to reset)"
+            onMouseDown={(e) => {
+              const startX = e.clientX;
+              const startW = layout.guideWidth;
+              startDrag(e, 'col-resize', (ev) => {
+                const nextW = Math.max(250, Math.min(540, startW + (ev.clientX - startX)));
+                updateLayout({ guideWidth: nextW });
+              });
+            }}
+            onDoubleClick={() => updateLayout({ guideWidth: getDefaultPanelLayout().guideWidth })}
+            className="w-1 bg-slate-800/80 hover:bg-blue-500/80 transition-colors cursor-col-resize shrink-0"
           />
-        </div>
+        </>
       )}
 
-      {/* Center Column: Studio Run Bar + Split/Focused Code/3D Viewport + Collapsible Output Console */}
+      {/* Center Column: Studio Run Bar + Resizable Code/3D Viewport + Resizable Output Console */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Run & Layout Toolbar */}
         <div className="h-11 bg-[#121824] border-b border-slate-800 px-3 flex items-center justify-between gap-3 shrink-0 overflow-x-auto">
@@ -511,6 +611,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={handlePlay}
+                title="Playtest scripts (F5)"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
@@ -521,6 +622,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 <button
                   type="button"
                   onClick={handleStop}
+                  title="Stop Playtest (F5 / Shift+F5)"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
@@ -612,7 +714,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                   ? 'bg-[#192233] border-slate-700 text-slate-100'
                   : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
-              title="Toggle Output & Network console"
+              title="Toggle Output & Command Bar"
             >
               <Terminal className="w-3.5 h-3.5" />
               Console{logs.length > 0 ? ` (${logs.length})` : ''}
@@ -633,13 +735,21 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* Code Editor + 3D Viewport Area */}
-        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        {/* Code Editor + 3D Viewport Area (Resizable Split) */}
+        <div
+          ref={centerSplitRef}
+          className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden"
+        >
           {centerView !== 'stage' && (
             <div
+              style={
+                centerView === 'split'
+                  ? ({ '--editor-w': `${layout.editorSplitPct}%` } as React.CSSProperties)
+                  : undefined
+              }
               className={`min-h-0 min-w-0 flex flex-col ${
                 centerView === 'split'
-                  ? 'flex-1 md:flex-none md:w-[53%] border-b md:border-b-0 md:border-r border-slate-800'
+                  ? 'w-full md:w-[var(--editor-w)] flex-1 md:flex-none border-b md:border-b-0 border-slate-800'
                   : 'flex-1'
               }`}
             >
@@ -651,6 +761,27 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 diagnostics={editorDiagnostics}
               />
             </div>
+          )}
+
+          {centerView === 'split' && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              title="Drag to resize Code & 3D Viewport (double-click to reset)"
+              onMouseDown={(e) => {
+                const container = centerSplitRef.current;
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                startDrag(e, 'col-resize', (ev) => {
+                  const pct = ((ev.clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                  updateLayout({ editorSplitPct: Math.max(28, Math.min(75, pct)) });
+                });
+              }}
+              onDoubleClick={() =>
+                updateLayout({ editorSplitPct: getDefaultPanelLayout().editorSplitPct })
+              }
+              className="hidden md:block w-1 bg-slate-800/80 hover:bg-blue-500/80 transition-colors cursor-col-resize shrink-0"
+            />
           )}
 
           {centerView !== 'code' && (
@@ -673,43 +804,111 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
           )}
         </div>
 
-        {/* Bottom Output / Network / DataStores Console */}
+        {/* Bottom Output / Network / DataStores / Command Bar Console (Resizable) */}
         {showConsole && (
-          <div className="h-36 shrink-0 min-h-0">
-            <OutputConsole
-              logs={logs}
-              networkLogs={networkLogs}
-              dataStores={dataStores}
-              onClear={() => {
-                logsRef.current = [];
-                networkLogsRef.current = [];
-                setLogs([]);
-                setNetworkLogs([]);
+          <>
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              title="Drag to resize Output Console (double-click to reset)"
+              onMouseDown={(e) => {
+                const startY = e.clientY;
+                const startH = layout.consoleHeight;
+                startDrag(e, 'row-resize', (ev) => {
+                  const nextH = Math.max(115, Math.min(440, startH + (startY - ev.clientY)));
+                  updateLayout({ consoleHeight: nextH });
+                });
               }}
+              onDoubleClick={() =>
+                updateLayout({ consoleHeight: getDefaultPanelLayout().consoleHeight })
+              }
+              className="h-1 bg-slate-800/80 hover:bg-blue-500/80 transition-colors cursor-row-resize shrink-0"
             />
-          </div>
+            <div style={{ height: `${layout.consoleHeight}px` }} className="shrink-0 min-h-0">
+              <OutputConsole
+                logs={logs}
+                networkLogs={networkLogs}
+                dataStores={dataStores}
+                onClear={() => {
+                  logsRef.current = [];
+                  networkLogsRef.current = [];
+                  setLogs([]);
+                  setNetworkLogs([]);
+                }}
+                onExecuteCommand={(cmd) => runtimeRef.current?.runCommandBar(cmd)}
+              />
+            </div>
+          </>
         )}
       </div>
 
-      {/* Right Column: Explorer Tree + Properties Inspector */}
+      {/* Right Column: Explorer Tree + Properties Inspector (Resizable Width & Split) */}
       {showInspector && (
-        <div className="grid w-[250px] sm:w-[265px] shrink-0 grid-rows-[1fr_1fr] min-h-0 overflow-hidden">
-          <ExplorerPanel
-            tree={tree}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={setSelectedNodeId}
-            onOpenScript={handleOpenScriptFromExplorer}
-            canCreateScripts={mode === 'sandbox'}
-            onCreateScript={handleCreateScript}
-          />
-          <PropertiesPanel
-            node={selectedNode}
-            isPlaying={isPlaying}
-            onUpdateProperty={(nodeId, prop, val) =>
-              runtimeRef.current?.updateInstanceProperty(nodeId, prop, val)
+        <>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            title="Drag to resize Inspector (double-click to reset)"
+            onMouseDown={(e) => {
+              const startX = e.clientX;
+              const startW = layout.inspectorWidth;
+              startDrag(e, 'col-resize', (ev) => {
+                const nextW = Math.max(230, Math.min(460, startW + (startX - ev.clientX)));
+                updateLayout({ inspectorWidth: nextW });
+              });
+            }}
+            onDoubleClick={() =>
+              updateLayout({ inspectorWidth: getDefaultPanelLayout().inspectorWidth })
             }
+            className="w-1 bg-slate-800/80 hover:bg-blue-500/80 transition-colors cursor-col-resize shrink-0"
           />
-        </div>
+          <div
+            ref={inspectorSplitRef}
+            style={{ width: `${layout.inspectorWidth}px` }}
+            className="shrink-0 flex flex-col min-h-0 overflow-hidden max-w-[36vw]"
+          >
+            <div
+              style={{ height: `${layout.explorerSplitPct}%` }}
+              className="min-h-0 flex flex-col overflow-hidden"
+            >
+              <ExplorerPanel
+                tree={tree}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={setSelectedNodeId}
+                onOpenScript={handleOpenScriptFromExplorer}
+                canCreateScripts={mode === 'sandbox'}
+                onCreateScript={handleCreateScript}
+              />
+            </div>
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              title="Drag to resize Explorer vs Properties (double-click to reset)"
+              onMouseDown={(e) => {
+                const container = inspectorSplitRef.current;
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                startDrag(e, 'row-resize', (ev) => {
+                  const pct = ((ev.clientY - rect.top) / Math.max(1, rect.height)) * 100;
+                  updateLayout({ explorerSplitPct: Math.max(25, Math.min(75, pct)) });
+                });
+              }}
+              onDoubleClick={() =>
+                updateLayout({ explorerSplitPct: getDefaultPanelLayout().explorerSplitPct })
+              }
+              className="h-1 bg-slate-800/80 hover:bg-blue-500/80 transition-colors cursor-row-resize shrink-0"
+            />
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <PropertiesPanel
+                node={selectedNode}
+                isPlaying={isPlaying}
+                onUpdateProperty={(nodeId, prop, val) =>
+                  runtimeRef.current?.updateInstanceProperty(nodeId, prop, val)
+                }
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

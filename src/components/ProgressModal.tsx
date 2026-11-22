@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, CheckCircle2, FolderOpen, Trash2, X } from 'lucide-react';
+import { Award, CheckCircle2, FolderOpen, Lock, Trash2, X } from 'lucide-react';
 import { CurriculumModuleSummary } from '../data/curriculum';
 import { LessonProgressRecord, SavedSandboxProject } from '../types/studio';
 
@@ -8,6 +8,7 @@ interface ProgressModalProps {
   onClose: () => void;
   modules: CurriculumModuleSummary[];
   progressMap: Record<string, LessonProgressRecord>;
+  unlockedLessonIds: Set<string>;
   savedProjects: SavedSandboxProject[];
   xp: number;
   isSignedIn: boolean;
@@ -21,6 +22,7 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
   onClose,
   modules,
   progressMap,
+  unlockedLessonIds,
   savedProjects,
   xp,
   isSignedIn,
@@ -84,26 +86,38 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
               {modules.map((mod) => {
                 const done = mod.lessons.filter((l) => progressMap[l.id]?.completed).length;
                 const modPct = Math.round((done / Math.max(1, mod.lessons.length)) * 100);
-                const firstUnfinished =
-                  mod.lessons.find((l) => !progressMap[l.id]?.completed) || mod.lessons[0];
+                const targetLesson =
+                  mod.lessons.find((l) => unlockedLessonIds.has(l.id) && !progressMap[l.id]?.completed) ||
+                  mod.lessons.find((l) => unlockedLessonIds.has(l.id));
+                const moduleUnlocked = Boolean(targetLesson);
 
                 return (
                   <div
                     key={mod.moduleId}
-                    className="p-3 rounded-lg bg-[#0F141F] border border-slate-800 space-y-2"
+                    className={`p-3 rounded-lg bg-[#0F141F] border border-slate-800 space-y-2 ${
+                      moduleUnlocked ? '' : 'opacity-60'
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <button
                         type="button"
+                        disabled={!moduleUnlocked}
                         onClick={() => {
-                          if (firstUnfinished) onSelectLesson(firstUnfinished.id);
+                          if (!targetLesson) return;
+                          onSelectLesson(targetLesson.id);
                           onClose();
                         }}
-                        className="text-xs font-medium text-white hover:text-sky-300 text-left cursor-pointer flex items-center gap-1.5"
+                        className={`text-xs font-medium text-left flex items-center gap-1.5 ${
+                          moduleUnlocked
+                            ? 'text-white hover:text-sky-300 cursor-pointer'
+                            : 'text-slate-400 cursor-not-allowed'
+                        }`}
                       >
-                        {done === mod.lessons.length && (
+                        {done === mod.lessons.length ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        )}
+                        ) : !moduleUnlocked ? (
+                          <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        ) : null}
                         Module {mod.moduleNumber}: {mod.moduleTitle}
                       </button>
                       <span className="text-xs text-slate-400 tabular-nums">
